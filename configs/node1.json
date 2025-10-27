@@ -1,0 +1,6 @@
+{
+  "id": "node1",
+  "address": ":9001",
+  "db_path": "./data/node1",
+  "signaling_server": "ws://localhost:9000/ws"
+}

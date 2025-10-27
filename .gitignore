@@ -1,0 +1,51 @@
+# AI
+.claude
+
+
+# Binários
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/
+dist/
+
+# Arquivos de teste
+*.test
+*.out
+coverage.out
+*.prof
+
+# Dependências
+vendor/
+
+# IDEs e Editores
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Dados da blockchain
+data/
+*.db
+*.log
+
+# Arquivos temporários
+tmp/
+temp/
+*.tmp
+
+# Builds
+cmd/node/node
+cmd/signaling/signaling
+
+# Configurações locais (não commitar configs com chaves privadas)
+*.local.json
+secrets/
+
+# Go workspace
+go.work
+go.work.sum
