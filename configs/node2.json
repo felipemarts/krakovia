@@ -1,9 +1,0 @@
-{
-  "id": "node2",
-  "address": ":9002",
-  "db_path": "./data/node2",
-  "signaling_server": "ws://localhost:9000/ws",
-  "max_peers": 50,
-  "min_peers": 5,
-  "discovery_interval": 30
-}

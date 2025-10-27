@@ -37,6 +37,7 @@ data/
 tmp/
 temp/
 *.tmp
+tests/test-data/
 
 # Builds
 cmd/node/node

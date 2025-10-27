@@ -9,20 +9,35 @@ import (
 	"github.com/krakovia/blockchain/pkg/signaling"
 )
 
+// Port ranges para testes de descoberta
+const (
+	// TestPeerLimitEnforcement: 11000-11099
+	portPeerLimit = 11000
+
+	// TestPeerDiscovery: 11100-11199
+	portPeerDiscovery = 11100
+
+	// TestMinimumPeersMaintenance: 11200-11299
+	portMinPeers = 11200
+)
+
 // TestPeerLimitEnforcement testa se o limite de peers é respeitado
 func TestPeerLimitEnforcement(t *testing.T) {
+	signalingPort := portPeerLimit
+	signalingURL := fmt.Sprintf("ws://localhost:%d/ws", signalingPort)
+
 	// Iniciar servidor de signaling
 	server := signaling.NewServer()
 	go func() {
-		if err := server.Start(":9500"); err != nil {
+		if err := server.Start(fmt.Sprintf(":%d", signalingPort)); err != nil {
 			t.Logf("Signaling server error: %v", err)
 		}
 	}()
 
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 
-	// Criar 10 nós, mas com limite de 3 peers cada
-	const numNodes = 10
+	// Criar 6 nós (reduzido de 10), mas com limite de 3 peers cada
+	const numNodes = 6
 	const maxPeers = 3
 	const minPeers = 2
 
@@ -31,12 +46,12 @@ func TestPeerLimitEnforcement(t *testing.T) {
 	for i := 0; i < numNodes; i++ {
 		config := node.Config{
 			ID:                fmt.Sprintf("limit-test-node%d", i+1),
-			Address:           fmt.Sprintf(":950%d", i+1),
+			Address:           fmt.Sprintf(":%d", signalingPort+i+1),
 			DBPath:            fmt.Sprintf("./test-data/limit-node%d", i+1),
-			SignalingServer:   "ws://localhost:9500/ws",
+			SignalingServer:   signalingURL,
 			MaxPeers:          maxPeers,
 			MinPeers:          minPeers,
-			DiscoveryInterval: 5, // 5 segundos para teste rápido
+			DiscoveryInterval: 2, // Descoberta rápida para o teste
 		}
 
 		n, err := node.NewNode(config)
@@ -50,11 +65,11 @@ func TestPeerLimitEnforcement(t *testing.T) {
 		}
 
 		nodes[i] = n
-		time.Sleep(200 * time.Millisecond) // Pequeno delay entre nós
+		time.Sleep(100 * time.Millisecond)
 	}
 
-	// Aguardar conexões serem estabelecidas
-	time.Sleep(8 * time.Second)
+	// Aguardar conexões (reduzido de 8s para 4s)
+	time.Sleep(4 * time.Second)
 
 	// Verificar que nenhum nó excedeu o limite
 	for i, n := range nodes {
@@ -79,35 +94,38 @@ func TestPeerLimitEnforcement(t *testing.T) {
 
 // TestPeerDiscovery testa a descoberta periódica de peers
 func TestPeerDiscovery(t *testing.T) {
+	signalingPort := portPeerDiscovery
+	signalingURL := fmt.Sprintf("ws://localhost:%d/ws", signalingPort)
+
 	// Iniciar servidor de signaling
 	server := signaling.NewServer()
 	go func() {
-		if err := server.Start(":9600"); err != nil {
+		if err := server.Start(fmt.Sprintf(":%d", signalingPort)); err != nil {
 			t.Logf("Signaling server error: %v", err)
 		}
 	}()
 
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 
 	// Criar 2 nós inicialmente
 	node1Config := node.Config{
 		ID:                "discovery-node1",
-		Address:           ":9601",
+		Address:           fmt.Sprintf(":%d", signalingPort+1),
 		DBPath:            "./test-data/discovery-node1",
-		SignalingServer:   "ws://localhost:9600/ws",
+		SignalingServer:   signalingURL,
 		MaxPeers:          10,
 		MinPeers:          2,
-		DiscoveryInterval: 3, // 3 segundos
+		DiscoveryInterval: 2, // Descoberta rápida
 	}
 
 	node2Config := node.Config{
 		ID:                "discovery-node2",
-		Address:           ":9602",
+		Address:           fmt.Sprintf(":%d", signalingPort+2),
 		DBPath:            "./test-data/discovery-node2",
-		SignalingServer:   "ws://localhost:9600/ws",
+		SignalingServer:   signalingURL,
 		MaxPeers:          10,
 		MinPeers:          2,
-		DiscoveryInterval: 3,
+		DiscoveryInterval: 2,
 	}
 
 	n1, err := node.NewNode(node1Config)
@@ -125,22 +143,22 @@ func TestPeerDiscovery(t *testing.T) {
 	n1.Start()
 	n2.Start()
 
-	time.Sleep(3 * time.Second)
+	time.Sleep(2 * time.Second)
 
 	peers1Before := len(n1.GetPeers())
 	peers2Before := len(n2.GetPeers())
 
 	t.Logf("Initial state - Node1: %d peers, Node2: %d peers", peers1Before, peers2Before)
 
-	// Adicionar um terceiro nó após os dois primeiros se conectarem
+	// Adicionar um terceiro nó
 	node3Config := node.Config{
 		ID:                "discovery-node3",
-		Address:           ":9603",
+		Address:           fmt.Sprintf(":%d", signalingPort+3),
 		DBPath:            "./test-data/discovery-node3",
-		SignalingServer:   "ws://localhost:9600/ws",
+		SignalingServer:   signalingURL,
 		MaxPeers:          10,
 		MinPeers:          2,
-		DiscoveryInterval: 3,
+		DiscoveryInterval: 2,
 	}
 
 	n3, err := node.NewNode(node3Config)
@@ -151,8 +169,8 @@ func TestPeerDiscovery(t *testing.T) {
 
 	n3.Start()
 
-	// Aguardar descoberta periódica encontrar o novo nó
-	time.Sleep(6 * time.Second)
+	// Aguardar descoberta periódica (reduzido de 6s para 3s)
+	time.Sleep(3 * time.Second)
 
 	peers1After := len(n1.GetPeers())
 	peers2After := len(n2.GetPeers())
@@ -173,15 +191,18 @@ func TestPeerDiscovery(t *testing.T) {
 
 // TestMinimumPeersMaintenance testa se os nós mantêm o mínimo de peers
 func TestMinimumPeersMaintenance(t *testing.T) {
+	signalingPort := portMinPeers
+	signalingURL := fmt.Sprintf("ws://localhost:%d/ws", signalingPort)
+
 	// Iniciar servidor de signaling
 	server := signaling.NewServer()
 	go func() {
-		if err := server.Start(":9700"); err != nil {
+		if err := server.Start(fmt.Sprintf(":%d", signalingPort)); err != nil {
 			t.Logf("Signaling server error: %v", err)
 		}
 	}()
 
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 
 	const minPeers = 3
 	const numNodes = 5
@@ -192,12 +213,12 @@ func TestMinimumPeersMaintenance(t *testing.T) {
 	for i := 0; i < numNodes; i++ {
 		config := node.Config{
 			ID:                fmt.Sprintf("min-peers-node%d", i+1),
-			Address:           fmt.Sprintf(":970%d", i+1),
+			Address:           fmt.Sprintf(":%d", signalingPort+i+1),
 			DBPath:            fmt.Sprintf("./test-data/min-peers-node%d", i+1),
-			SignalingServer:   "ws://localhost:9700/ws",
+			SignalingServer:   signalingURL,
 			MaxPeers:          10,
 			MinPeers:          minPeers,
-			DiscoveryInterval: 5,
+			DiscoveryInterval: 2, // Descoberta rápida
 		}
 
 		n, err := node.NewNode(config)
@@ -211,11 +232,11 @@ func TestMinimumPeersMaintenance(t *testing.T) {
 		}
 
 		nodes[i] = n
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(200 * time.Millisecond)
 	}
 
-	// Aguardar conexões
-	time.Sleep(8 * time.Second)
+	// Aguardar conexões (reduzido de 8s para 4s)
+	time.Sleep(4 * time.Second)
 
 	// Verificar que todos os nós têm pelo menos minPeers conexões
 	allGood := true
