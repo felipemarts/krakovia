@@ -2,6 +2,9 @@ package tests
 
 import (
 	"fmt"
+	"math/rand"
+	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -10,25 +13,28 @@ import (
 	"github.com/krakovia/blockchain/pkg/signaling"
 )
 
-// Port ranges para cada teste (evita conflitos)
-const (
-	// TestNodeConnection: 10000-10099
-	portNodeConnection = 10000
+// getRandomPort retorna uma porta aleatória no intervalo 9000-29000
+func getRandomPort() int {
+	return 9000 + rand.Intn(20000)
+}
 
-	// TestMultipleNodesConnection: 10100-10199
-	portMultipleNodes = 10100
-
-	// TestMessageBroadcast: 10200-10299
-	portMessageBroadcast = 10200
-
-	// TestNodeReconnection: 10300-10399
-	portNodeReconnection = 10300
-)
+// getTempDataDir cria um diretório temporário único para o teste
+func getTempDataDir(t *testing.T, testName string) string {
+	tempDir := filepath.Join(os.TempDir(), fmt.Sprintf("krakovia-test-%s-%d", testName, time.Now().UnixNano()))
+	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	t.Cleanup(func() {
+		os.RemoveAll(tempDir)
+	})
+	return tempDir
+}
 
 // TestNodeConnection testa a conexão básica entre nós
 func TestNodeConnection(t *testing.T) {
-	signalingPort := portNodeConnection
+	signalingPort := getRandomPort()
 	signalingURL := fmt.Sprintf("ws://localhost:%d/ws", signalingPort)
+	tempDir := getTempDataDir(t, "conn")
 
 	// Iniciar servidor de signaling
 	server := signaling.NewServer()
@@ -44,8 +50,8 @@ func TestNodeConnection(t *testing.T) {
 	// Criar configurações para 2 nós
 	node1Config := node.Config{
 		ID:                "test-node1",
-		Address:           fmt.Sprintf(":%d", signalingPort+1),
-		DBPath:            "./test-data/conn-node1",
+		Address:           fmt.Sprintf(":%d", getRandomPort()),
+		DBPath:            filepath.Join(tempDir, "node1"),
 		SignalingServer:   signalingURL,
 		MaxPeers:          10,
 		MinPeers:          1,
@@ -54,8 +60,8 @@ func TestNodeConnection(t *testing.T) {
 
 	node2Config := node.Config{
 		ID:                "test-node2",
-		Address:           fmt.Sprintf(":%d", signalingPort+2),
-		DBPath:            "./test-data/conn-node2",
+		Address:           fmt.Sprintf(":%d", getRandomPort()),
+		DBPath:            filepath.Join(tempDir, "node2"),
 		SignalingServer:   signalingURL,
 		MaxPeers:          10,
 		MinPeers:          1,
@@ -105,8 +111,9 @@ func TestNodeConnection(t *testing.T) {
 
 // TestMultipleNodesConnection testa a conexão entre múltiplos nós
 func TestMultipleNodesConnection(t *testing.T) {
-	signalingPort := portMultipleNodes
+	signalingPort := getRandomPort()
 	signalingURL := fmt.Sprintf("ws://localhost:%d/ws", signalingPort)
+	tempDir := getTempDataDir(t, "multi")
 
 	// Iniciar servidor de signaling
 	server := signaling.NewServer()
@@ -126,8 +133,8 @@ func TestMultipleNodesConnection(t *testing.T) {
 	for i := 0; i < numNodes; i++ {
 		config := node.Config{
 			ID:                fmt.Sprintf("multi-node%d", i+1),
-			Address:           fmt.Sprintf(":%d", signalingPort+i+1),
-			DBPath:            fmt.Sprintf("./test-data/multi-node%d", i+1),
+			Address:           fmt.Sprintf(":%d", getRandomPort()),
+			DBPath:            filepath.Join(tempDir, fmt.Sprintf("node%d", i+1)),
 			SignalingServer:   signalingURL,
 			MaxPeers:          10,
 			MinPeers:          2,
@@ -147,11 +154,11 @@ func TestMultipleNodesConnection(t *testing.T) {
 		nodes[i] = n
 
 		// Pequeno delay para evitar race no signaling
-		time.Sleep(200 * time.Millisecond)
+		time.Sleep(150 * time.Millisecond)
 	}
 
-	// Aguardar conexões (4s para garantir mesh completa)
-	time.Sleep(4 * time.Second)
+	// Aguardar conexões (3s para garantir mesh completa)
+	time.Sleep(3 * time.Second)
 
 	// Verificar se todos os nós estão bem conectados (pelo menos 2 peers)
 	// Em uma rede mesh com 4 nós, nem sempre todos conectam simultaneamente a todos
@@ -170,8 +177,9 @@ func TestMultipleNodesConnection(t *testing.T) {
 
 // TestMessageBroadcast testa o broadcast de mensagens entre nós
 func TestMessageBroadcast(t *testing.T) {
-	signalingPort := portMessageBroadcast
+	signalingPort := getRandomPort()
 	signalingURL := fmt.Sprintf("ws://localhost:%d/ws", signalingPort)
+	tempDir := getTempDataDir(t, "broadcast")
 
 	server := signaling.NewServer()
 	go func() {
@@ -186,8 +194,8 @@ func TestMessageBroadcast(t *testing.T) {
 	configs := []node.Config{
 		{
 			ID:                "broadcast-node1",
-			Address:           fmt.Sprintf(":%d", signalingPort+1),
-			DBPath:            "./test-data/broadcast-node1",
+			Address:           fmt.Sprintf(":%d", getRandomPort()),
+			DBPath:            filepath.Join(tempDir, "node1"),
 			SignalingServer:   signalingURL,
 			MaxPeers:          10,
 			MinPeers:          2,
@@ -195,8 +203,8 @@ func TestMessageBroadcast(t *testing.T) {
 		},
 		{
 			ID:                "broadcast-node2",
-			Address:           fmt.Sprintf(":%d", signalingPort+2),
-			DBPath:            "./test-data/broadcast-node2",
+			Address:           fmt.Sprintf(":%d", getRandomPort()),
+			DBPath:            filepath.Join(tempDir, "node2"),
 			SignalingServer:   signalingURL,
 			MaxPeers:          10,
 			MinPeers:          2,
@@ -204,8 +212,8 @@ func TestMessageBroadcast(t *testing.T) {
 		},
 		{
 			ID:                "broadcast-node3",
-			Address:           fmt.Sprintf(":%d", signalingPort+3),
-			DBPath:            "./test-data/broadcast-node3",
+			Address:           fmt.Sprintf(":%d", getRandomPort()),
+			DBPath:            filepath.Join(tempDir, "node3"),
 			SignalingServer:   signalingURL,
 			MaxPeers:          10,
 			MinPeers:          2,
@@ -230,11 +238,11 @@ func TestMessageBroadcast(t *testing.T) {
 		}
 
 		nodes[i] = n
-		time.Sleep(200 * time.Millisecond)
+		time.Sleep(150 * time.Millisecond)
 	}
 
-	// Aguardar conexões (reduzido de 3s para 2s)
-	time.Sleep(2 * time.Second)
+	// Aguardar conexões (reduzido para 1.5s)
+	time.Sleep(1500 * time.Millisecond)
 
 	// Verificar conexões
 	for i, n := range nodes {
@@ -261,8 +269,9 @@ func TestMessageBroadcast(t *testing.T) {
 
 // TestNodeReconnection testa a reconexão após desconexão
 func TestNodeReconnection(t *testing.T) {
-	signalingPort := portNodeReconnection
+	signalingPort := getRandomPort()
 	signalingURL := fmt.Sprintf("ws://localhost:%d/ws", signalingPort)
+	tempDir := getTempDataDir(t, "reconnect")
 
 	// Iniciar servidor de signaling
 	server := signaling.NewServer()
@@ -277,8 +286,8 @@ func TestNodeReconnection(t *testing.T) {
 	// Criar 2 nós
 	node1Config := node.Config{
 		ID:                "reconnect-node1",
-		Address:           fmt.Sprintf(":%d", signalingPort+1),
-		DBPath:            "./test-data/reconnect-node1",
+		Address:           fmt.Sprintf(":%d", getRandomPort()),
+		DBPath:            filepath.Join(tempDir, "node1"),
 		SignalingServer:   signalingURL,
 		MaxPeers:          10,
 		MinPeers:          1,
@@ -287,8 +296,8 @@ func TestNodeReconnection(t *testing.T) {
 
 	node2Config := node.Config{
 		ID:                "reconnect-node2",
-		Address:           fmt.Sprintf(":%d", signalingPort+2),
-		DBPath:            "./test-data/reconnect-node2",
+		Address:           fmt.Sprintf(":%d", getRandomPort()),
+		DBPath:            filepath.Join(tempDir, "node2"),
 		SignalingServer:   signalingURL,
 		MaxPeers:          10,
 		MinPeers:          1,
@@ -315,8 +324,8 @@ func TestNodeReconnection(t *testing.T) {
 		t.Fatalf("Failed to start node2: %v", err)
 	}
 
-	// Aguardar conexão (reduzido de 3s para 2s)
-	time.Sleep(2 * time.Second)
+	// Aguardar conexão (reduzido para 1.5s)
+	time.Sleep(1500 * time.Millisecond)
 
 	peers1 := n1.GetPeers()
 	if len(peers1) != 1 {
@@ -327,7 +336,7 @@ func TestNodeReconnection(t *testing.T) {
 
 	// Desconectar node2
 	n2.Stop()
-	time.Sleep(1 * time.Second)
+	time.Sleep(500 * time.Millisecond)
 
 	peers1AfterDisconnect := n1.GetPeers()
 	t.Logf("  Node1 peers after node2 disconnect: %d", len(peers1AfterDisconnect))
@@ -343,8 +352,8 @@ func TestNodeReconnection(t *testing.T) {
 		t.Fatalf("Failed to restart node2: %v", err)
 	}
 
-	// Aguardar reconexão (reduzido de 3s para 2s)
-	time.Sleep(2 * time.Second)
+	// Aguardar reconexão (reduzido para 1.5s)
+	time.Sleep(1500 * time.Millisecond)
 
 	peers1AfterReconnect := n1.GetPeers()
 	peers2AfterReconnect := n2.GetPeers()

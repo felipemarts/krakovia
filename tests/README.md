@@ -28,6 +28,25 @@ Testes de conexão WebRTC entre nós:
    - Simula falha de nó e recuperação
    - Verifica estabilidade da rede
 
+### discovery_test.go
+
+Testes do sistema de descoberta de peers:
+
+1. **TestPeerLimitEnforcement**
+   - Verifica se o limite máximo de peers (MaxPeers) é respeitado
+   - Cria 6 nós com limite de 3 peers cada
+   - Valida que nenhum nó excede o limite configurado
+
+2. **TestPeerDiscovery**
+   - Testa descoberta periódica de novos peers
+   - Adiciona novo nó após rede estabelecida
+   - Verifica se nós existentes descobrem o novo peer automaticamente
+
+3. **TestMinimumPeersMaintenance**
+   - Verifica se nós mantêm o mínimo de peers configurado (MinPeers)
+   - Testa se a descoberta periódica preenche conexões insuficientes
+   - Valida que todos os nós atingem o mínimo de conexões
+
 ## Como Executar os Testes
 
 ### Executar todos os testes
@@ -52,18 +71,22 @@ rm -rf tests/test-data
 
 ## Portas Utilizadas nos Testes
 
-Os testes usam portas diferentes para evitar conflitos:
+**Os testes agora usam alocação dinâmica de portas!**
 
-- **TestNodeConnection**: 9100-9102
-- **TestMultipleNodesConnection**: 9200-9205
-- **TestMessageBroadcast**: 9300-9303
-- **TestNodeReconnection**: 9400-9402
+Cada execução de teste aloca portas aleatórias no intervalo **9000-29000**, evitando completamente conflitos de porta entre:
+- Múltiplas execuções de testes simultâneas
+- Serviços já rodando no sistema
+- Execuções consecutivas sem cleanup completo
 
-Certifique-se de que essas portas estão disponíveis antes de executar os testes.
+Isso significa que você pode executar os testes quantas vezes quiser sem se preocupar com portas ocupadas.
 
 ## Dados de Teste
 
-Os testes criam dados temporários em `tests/test-data/`. Estes arquivos são ignorados pelo git (veja .gitignore) e podem ser removidos manualmente se necessário.
+**Os testes agora usam diretórios temporários únicos!**
+
+Cada execução cria um diretório único em `/tmp/krakovia-test-{nome}-{timestamp}/` que é automaticamente limpo ao final do teste usando `t.Cleanup()`.
+
+Não há mais necessidade de limpar manualmente dados de teste entre execuções.
 
 ## Observações
 

@@ -42,6 +42,7 @@ tests/test-data/
 # Builds
 cmd/node/node
 cmd/signaling/signaling
+build/
 
 # Configurações locais (não commitar configs com chaves privadas)
 *.local.json
