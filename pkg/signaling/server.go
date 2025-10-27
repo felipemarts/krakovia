@@ -170,7 +170,9 @@ func (s *Server) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 func (s *Server) readPump(client *Client) {
 	defer func() {
 		s.unregister <- client
-		client.Conn.Close()
+		if err := client.Conn.Close(); err != nil {
+			fmt.Printf("Error closing client connection: %v\n", err)
+		}
 	}()
 
 	for {
@@ -202,7 +204,11 @@ func (s *Server) readPump(client *Client) {
 
 // writePump envia mensagens para o cliente
 func (s *Server) writePump(client *Client) {
-	defer client.Conn.Close()
+	defer func() {
+		if err := client.Conn.Close(); err != nil {
+			fmt.Printf("Error closing client connection: %v\n", err)
+		}
+	}()
 
 	for message := range client.Send {
 		client.connMux.Lock()

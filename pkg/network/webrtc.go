@@ -119,13 +119,21 @@ func (w *WebRTCClient) handleSignalingMessages() {
 				toConnect := w.discovery.SelectPeersToConnect(msg.PeerList, currentlyConnected)
 				fmt.Printf("[%s] Selected peers to connect: %v\n", w.ID, toConnect)
 				for _, peerID := range toConnect {
-					go w.ConnectToPeer(peerID)
+					go func(pid string) {
+					if err := w.ConnectToPeer(pid); err != nil {
+						fmt.Printf("Failed to connect to peer %s: %v\n", pid, err)
+					}
+				}(peerID)
 				}
 			} else {
 				// Modo legado: conectar a todos
 				for _, peerID := range msg.PeerList {
 					if peerID != w.ID {
-						go w.ConnectToPeer(peerID)
+						go func(pid string) {
+					if err := w.ConnectToPeer(pid); err != nil {
+						fmt.Printf("Failed to connect to peer %s: %v\n", pid, err)
+					}
+				}(peerID)
 					}
 				}
 			}
@@ -293,7 +301,9 @@ func (w *WebRTCClient) sendOffer(to string, sdp *webrtc.SessionDescription) {
 		SDP:  sdp,
 	}
 	w.signalingMux.Lock()
-	w.signalingConn.WriteJSON(msg)
+	if err := w.signalingConn.WriteJSON(msg); err != nil {
+		fmt.Printf("Failed to send signaling message: %v\n", err)
+	}
 	w.signalingMux.Unlock()
 }
 
@@ -306,7 +316,9 @@ func (w *WebRTCClient) sendAnswer(to string, sdp *webrtc.SessionDescription) {
 		SDP:  sdp,
 	}
 	w.signalingMux.Lock()
-	w.signalingConn.WriteJSON(msg)
+	if err := w.signalingConn.WriteJSON(msg); err != nil {
+		fmt.Printf("Failed to send signaling message: %v\n", err)
+	}
 	w.signalingMux.Unlock()
 }
 
@@ -320,7 +332,9 @@ func (w *WebRTCClient) sendICECandidate(to string, candidate *webrtc.ICECandidat
 		ICE:  &init,
 	}
 	w.signalingMux.Lock()
-	w.signalingConn.WriteJSON(msg)
+	if err := w.signalingConn.WriteJSON(msg); err != nil {
+		fmt.Printf("Failed to send signaling message: %v\n", err)
+	}
 	w.signalingMux.Unlock()
 }
 
@@ -353,7 +367,9 @@ func (w *WebRTCClient) RequestPeerList() {
 		From: w.ID,
 	}
 	w.signalingMux.Lock()
-	w.signalingConn.WriteJSON(msg)
+	if err := w.signalingConn.WriteJSON(msg); err != nil {
+		fmt.Printf("Failed to send signaling message: %v\n", err)
+	}
 	w.signalingMux.Unlock()
 }
 
@@ -384,11 +400,15 @@ func (w *WebRTCClient) Close() {
 	defer w.peersMutex.Unlock()
 
 	for _, peer := range w.peers {
-		peer.Close()
+		if err := peer.Close(); err != nil {
+			fmt.Printf("Error closing peer connection: %v\n", err)
+		}
 	}
 
 	if w.signalingConn != nil {
-		w.signalingConn.Close()
+		if err := w.signalingConn.Close(); err != nil {
+			fmt.Printf("Error closing signaling connection: %v\n", err)
+		}
 	}
 }
 

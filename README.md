@@ -150,6 +150,20 @@ go run cmd/node/main.go -config configs/node3.json
 - **Gorilla WebSocket**: WebSocket para servidor de signaling
 - **LevelDB**: Banco de dados local para persistência
 
+## Desenvolvimento
+
+### Build
+- `make build`: Gera os binários em `bin/` (`bin/node` e `bin/signaling`).
+- Alternativa direta: `go build ./cmd/...`.
+
+### Testes
+- `make test`: Executa os testes localizados em `./tests` com verbosidade.
+- Para rodar todos os testes do módulo: `go test ./...`.
+
+### Lint
+- `golangci-lint run --timeout=5m`: Executa as verificações estáticas (requer `golangci-lint` instalado).
+- Você pode instalar via `brew install golangci-lint` (macOS) ou consultar as instruções oficiais em https://golangci-lint.run/usage/install/.
+
 ## Licença
 
 MIT

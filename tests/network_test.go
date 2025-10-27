@@ -18,6 +18,13 @@ func getRandomPort() int {
 	return 9000 + rand.Intn(20000)
 }
 
+// stopNode para o nó de forma segura, logando se houver erro
+func stopNode(n *node.Node, t *testing.T) {
+	if err := n.Stop(); err != nil {
+		t.Logf("Warning: error stopping node: %v", err)
+	}
+}
+
 // getTempDataDir cria um diretório temporário único para o teste
 func getTempDataDir(t *testing.T, testName string) string {
 	tempDir := filepath.Join(os.TempDir(), fmt.Sprintf("krakovia-test-%s-%d", testName, time.Now().UnixNano()))
@@ -25,7 +32,9 @@ func getTempDataDir(t *testing.T, testName string) string {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 	t.Cleanup(func() {
-		os.RemoveAll(tempDir)
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Warning: failed to remove temp dir: %v", err)
+		}
 	})
 	return tempDir
 }
@@ -73,13 +82,13 @@ func TestNodeConnection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create node1: %v", err)
 	}
-	defer n1.Stop()
+	defer stopNode(n1, t)
 
 	n2, err := node.NewNode(node2Config)
 	if err != nil {
 		t.Fatalf("Failed to create node2: %v", err)
 	}
-	defer n2.Stop()
+	defer stopNode(n2, t)
 
 	if err := n1.Start(); err != nil {
 		t.Fatalf("Failed to start node1: %v", err)
@@ -145,7 +154,7 @@ func TestMultipleNodesConnection(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to create node%d: %v", i+1, err)
 		}
-		defer n.Stop()
+		defer stopNode(n, t)
 
 		if err := n.Start(); err != nil {
 			t.Fatalf("Failed to start node%d: %v", i+1, err)
@@ -231,7 +240,7 @@ func TestMessageBroadcast(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to create node: %v", err)
 		}
-		defer n.Stop()
+		defer stopNode(n, t)
 
 		if err := n.Start(); err != nil {
 			t.Fatalf("Failed to start node: %v", err)
@@ -308,7 +317,7 @@ func TestNodeReconnection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create node1: %v", err)
 	}
-	defer n1.Stop()
+	defer stopNode(n1, t)
 
 	n2, err := node.NewNode(node2Config)
 	if err != nil {
@@ -335,7 +344,7 @@ func TestNodeReconnection(t *testing.T) {
 	t.Logf("✓ Initial connection established")
 
 	// Desconectar node2
-	n2.Stop()
+	stopNode(n2, t)
 	time.Sleep(500 * time.Millisecond)
 
 	peers1AfterDisconnect := n1.GetPeers()
@@ -346,7 +355,7 @@ func TestNodeReconnection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to recreate node2: %v", err)
 	}
-	defer n2.Stop()
+	defer stopNode(n2, t)
 
 	if err := n2.Start(); err != nil {
 		t.Fatalf("Failed to restart node2: %v", err)

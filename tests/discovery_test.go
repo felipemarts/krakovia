@@ -20,6 +20,13 @@ func getRandomPortDiscovery() int {
 	return 9000 + rand.Intn(20000)
 }
 
+// stopNodeDiscovery para o nó de forma segura, logando se houver erro
+func stopNodeDiscovery(n *node.Node, t *testing.T) {
+	if err := n.Stop(); err != nil {
+		t.Logf("Warning: error stopping node: %v", err)
+	}
+}
+
 // getTempDataDirDiscovery cria um diretório temporário único para o teste
 func getTempDataDirDiscovery(t *testing.T, testName string) string {
 	tempDir := filepath.Join(os.TempDir(), fmt.Sprintf("krakovia-test-%s-%d", testName, time.Now().UnixNano()))
@@ -27,7 +34,9 @@ func getTempDataDirDiscovery(t *testing.T, testName string) string {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 	t.Cleanup(func() {
-		os.RemoveAll(tempDir)
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Warning: failed to remove temp dir: %v", err)
+		}
 	})
 	return tempDir
 }
@@ -70,7 +79,7 @@ func TestPeerLimitEnforcement(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to create node%d: %v", i+1, err)
 		}
-		defer n.Stop()
+		defer stopNodeDiscovery(n, t)
 
 		if err := n.Start(); err != nil {
 			t.Fatalf("Failed to start node%d: %v", i+1, err)
@@ -145,16 +154,20 @@ func TestPeerDiscovery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create node1: %v", err)
 	}
-	defer n1.Stop()
+	defer stopNodeDiscovery(n1, t)
 
 	n2, err := node.NewNode(node2Config)
 	if err != nil {
 		t.Fatalf("Failed to create node2: %v", err)
 	}
-	defer n2.Stop()
+	defer stopNodeDiscovery(n2, t)
 
-	n1.Start()
-	n2.Start()
+	if err := n1.Start(); err != nil {
+		t.Fatalf("Failed to start node1: %v", err)
+	}
+	if err := n2.Start(); err != nil {
+		t.Fatalf("Failed to start node2: %v", err)
+	}
 
 	time.Sleep(1500 * time.Millisecond)
 
@@ -178,9 +191,11 @@ func TestPeerDiscovery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create node3: %v", err)
 	}
-	defer n3.Stop()
+	defer stopNodeDiscovery(n3, t)
 
-	n3.Start()
+	if err := n3.Start(); err != nil {
+		t.Fatalf("Failed to start node3: %v", err)
+	}
 
 	// Aguardar descoberta periódica (reduzido para 2.5s)
 	time.Sleep(2500 * time.Millisecond)
@@ -239,7 +254,7 @@ func TestMinimumPeersMaintenance(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to create node%d: %v", i+1, err)
 		}
-		defer n.Stop()
+		defer stopNodeDiscovery(n, t)
 
 		if err := n.Start(); err != nil {
 			t.Fatalf("Failed to start node%d: %v", i+1, err)

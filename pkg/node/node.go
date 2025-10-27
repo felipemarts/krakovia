@@ -73,7 +73,9 @@ func NewNode(config Config) (*Node, error) {
 	// Inicializar cliente WebRTC com sistema de descoberta
 	webRTCClient, err := network.NewWebRTCClientWithDiscovery(config.ID, config.SignalingServer, node, discovery)
 	if err != nil {
-		db.Close()
+		if closeErr := db.Close(); closeErr != nil {
+			fmt.Printf("Warning: failed to close DB: %v\n", closeErr)
+		}
 		cancel()
 		return nil, fmt.Errorf("failed to create WebRTC client: %w", err)
 	}
@@ -132,7 +134,9 @@ func (n *Node) runDiscovery() {
 		toDisconnect := n.discovery.SelectPeersToDisconnect(peerIDs)
 		for _, peerID := range toDisconnect {
 			fmt.Printf("[%s] Disconnecting peer %s (over limit)\n", n.ID, peerID)
-			n.webRTC.DisconnectPeer(peerID)
+			if err := n.webRTC.DisconnectPeer(peerID); err != nil {
+				fmt.Printf("[%s] Failed to disconnect peer %s: %v\n", n.ID, peerID, err)
+			}
 		}
 	}
 
