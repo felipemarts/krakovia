@@ -24,6 +24,7 @@ type WebRTCClient struct {
 	signalingConn   *websocket.Conn
 	signalingMux    sync.Mutex
 	handler         PeerHandler
+	discovery       *PeerDiscovery
 }
 
 // SignalingMessage representa uma mensagem do servidor de signaling
@@ -38,6 +39,11 @@ type SignalingMessage struct {
 
 // NewWebRTCClient cria um novo cliente WebRTC
 func NewWebRTCClient(id, signalingServer string, handler PeerHandler) (*WebRTCClient, error) {
+	return NewWebRTCClientWithDiscovery(id, signalingServer, handler, nil)
+}
+
+// NewWebRTCClientWithDiscovery cria um novo cliente WebRTC com sistema de descoberta
+func NewWebRTCClientWithDiscovery(id, signalingServer string, handler PeerHandler, discovery *PeerDiscovery) (*WebRTCClient, error) {
 	config := webrtc.Configuration{
 		ICEServers: []webrtc.ICEServer{
 			{
@@ -52,6 +58,7 @@ func NewWebRTCClient(id, signalingServer string, handler PeerHandler) (*WebRTCCl
 		config:          config,
 		peers:           make(map[string]*Peer),
 		handler:         handler,
+		discovery:       discovery,
 	}, nil
 }
 
@@ -92,15 +99,43 @@ func (w *WebRTCClient) handleSignalingMessages() {
 
 		switch msg.Type {
 		case "peer-list":
-			// Lista de peers disponíveis - conectar a cada um
-			for _, peerID := range msg.PeerList {
-				if peerID != w.ID {
+			fmt.Printf("[%s] Received peer list: %v\n", w.ID, msg.PeerList)
+			// Lista de peers disponíveis
+			if w.discovery != nil {
+				// Usar sistema de descoberta para selecionar peers
+				w.peersMutex.RLock()
+				currentlyConnected := make(map[string]bool)
+				for peerID := range w.peers {
+					currentlyConnected[peerID] = true
+				}
+				w.peersMutex.RUnlock()
+
+				// Adicionar todos os peers à lista de conhecidos
+				for _, peerID := range msg.PeerList {
+					w.discovery.AddKnownPeer(peerID)
+				}
+
+				// Selecionar quais peers conectar
+				toConnect := w.discovery.SelectPeersToConnect(msg.PeerList, currentlyConnected)
+				fmt.Printf("[%s] Selected peers to connect: %v\n", w.ID, toConnect)
+				for _, peerID := range toConnect {
 					go w.ConnectToPeer(peerID)
+				}
+			} else {
+				// Modo legado: conectar a todos
+				for _, peerID := range msg.PeerList {
+					if peerID != w.ID {
+						go w.ConnectToPeer(peerID)
+					}
 				}
 			}
 
 		case "offer":
-			// Recebeu uma oferta de conexão
+			// Recebeu uma oferta de conexão - verificar se deve aceitar
+			if w.discovery != nil && !w.discovery.ShouldAcceptNewPeer() {
+				fmt.Printf("Rejecting offer from %s (peer limit reached)\n", msg.From)
+				return
+			}
 			go w.handleOffer(msg.From, msg.SDP)
 
 		case "answer":
@@ -309,6 +344,38 @@ func (w *WebRTCClient) removePeer(peerID string) {
 	if w.handler != nil {
 		w.handler.RemovePeer(peerID)
 	}
+}
+
+// RequestPeerList solicita a lista de peers do servidor de signaling
+func (w *WebRTCClient) RequestPeerList() {
+	msg := SignalingMessage{
+		Type: "get-peers",
+		From: w.ID,
+	}
+	w.signalingMux.Lock()
+	w.signalingConn.WriteJSON(msg)
+	w.signalingMux.Unlock()
+}
+
+// DisconnectPeer desconecta de um peer específico
+func (w *WebRTCClient) DisconnectPeer(peerID string) error {
+	w.peersMutex.RLock()
+	peer, exists := w.peers[peerID]
+	w.peersMutex.RUnlock()
+
+	if !exists {
+		return fmt.Errorf("peer %s not found", peerID)
+	}
+
+	// Fechar conexão
+	if err := peer.Close(); err != nil {
+		return fmt.Errorf("failed to close peer connection: %w", err)
+	}
+
+	// Remover da lista
+	w.removePeer(peerID)
+
+	return nil
 }
 
 // Close fecha todas as conexões

@@ -65,9 +65,21 @@ Crie arquivos de configuração JSON para cada nó. Exemplos em `configs/`:
   "id": "node1",
   "address": ":9001",
   "db_path": "./data/node1",
-  "signaling_server": "ws://localhost:9000/ws"
+  "signaling_server": "ws://localhost:9000/ws",
+  "max_peers": 50,
+  "min_peers": 5,
+  "discovery_interval": 30
 }
 ```
+
+**Parâmetros de Configuração:**
+- `id`: Identificador único do nó (obrigatório)
+- `address`: Endereço e porta do nó (obrigatório)
+- `db_path`: Caminho para banco de dados LevelDB (obrigatório)
+- `signaling_server`: URL do servidor de signaling (obrigatório)
+- `max_peers`: Número máximo de peers conectados (padrão: 50)
+- `min_peers`: Número mínimo de peers desejado (padrão: 5)
+- `discovery_interval`: Intervalo de descoberta em segundos (padrão: 30)
 
 ### 4. Iniciar Nós
 
@@ -98,16 +110,28 @@ go run cmd/node/main.go -config configs/node3.json
    - Envia mensagem de registro com seu ID
    - Recebe lista de peers já conectados
 
-2. **Estabelecimento de Conexão P2P**
-   - Nó cria PeerConnection WebRTC para cada peer
+2. **Descoberta e Seleção de Peers**
+   - Sistema de descoberta analisa peers disponíveis
+   - Seleciona peers baseado em min/max_peers configurados
+   - Conecta apenas aos peers necessários (não a todos)
+
+3. **Estabelecimento de Conexão P2P**
+   - Nó cria PeerConnection WebRTC para peers selecionados
    - Troca de ofertas/respostas via signaling server
    - Troca de ICE candidates
    - Estabelece data channel direto entre peers
 
-3. **Comunicação P2P**
+4. **Comunicação P2P**
    - Mensagens são enviadas diretamente via data channel
    - Sem intermediação do servidor de signaling
    - Broadcast de mensagens para todos os peers conectados
+
+5. **Descoberta Periódica**
+   - A cada `discovery_interval` segundos:
+     - Verifica se precisa de mais peers (< min_peers)
+     - Desconecta peers excedentes (> max_peers)
+     - Solicita nova lista de peers disponíveis
+   - Mantém rede balanceada automaticamente
 
 ## Próximos Passos
 

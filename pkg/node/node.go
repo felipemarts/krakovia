@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/krakovia/blockchain/pkg/network"
 	"github.com/syndtr/goleveldb/leveldb"
@@ -11,22 +12,27 @@ import (
 
 // Node representa um nó na blockchain
 type Node struct {
-	ID          string
-	Address     string
-	db          *leveldb.DB
-	webRTC      *network.WebRTCClient
-	peers       map[string]*network.Peer
-	peersMutex  sync.RWMutex
-	ctx         context.Context
-	cancel      context.CancelFunc
+	ID                string
+	Address           string
+	db                *leveldb.DB
+	webRTC            *network.WebRTCClient
+	peers             map[string]*network.Peer
+	peersMutex        sync.RWMutex
+	discovery         *network.PeerDiscovery
+	ctx               context.Context
+	cancel            context.CancelFunc
+	discoveryInterval time.Duration
 }
 
 // Config contém as configurações para criar um nó
 type Config struct {
-	ID              string
-	Address         string
-	DBPath          string
-	SignalingServer string
+	ID                string
+	Address           string
+	DBPath            string
+	SignalingServer   string
+	MaxPeers          int
+	MinPeers          int
+	DiscoveryInterval int // em segundos
 }
 
 // NewNode cria uma nova instância de nó
@@ -37,19 +43,35 @@ func NewNode(config Config) (*Node, error) {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-
-	node := &Node{
-		ID:      config.ID,
-		Address: config.Address,
-		db:      db,
-		peers:   make(map[string]*network.Peer),
-		ctx:     ctx,
-		cancel:  cancel,
+	// Valores padrão
+	if config.MaxPeers == 0 {
+		config.MaxPeers = 50
+	}
+	if config.MinPeers == 0 {
+		config.MinPeers = 5
+	}
+	if config.DiscoveryInterval == 0 {
+		config.DiscoveryInterval = 30
 	}
 
-	// Inicializar cliente WebRTC
-	webRTCClient, err := network.NewWebRTCClient(config.ID, config.SignalingServer, node)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Criar sistema de descoberta de peers
+	discovery := network.NewPeerDiscovery(config.ID, config.MaxPeers, config.MinPeers)
+
+	node := &Node{
+		ID:                config.ID,
+		Address:           config.Address,
+		db:                db,
+		peers:             make(map[string]*network.Peer),
+		discovery:         discovery,
+		ctx:               ctx,
+		cancel:            cancel,
+		discoveryInterval: time.Duration(config.DiscoveryInterval) * time.Second,
+	}
+
+	// Inicializar cliente WebRTC com sistema de descoberta
+	webRTCClient, err := network.NewWebRTCClientWithDiscovery(config.ID, config.SignalingServer, node, discovery)
 	if err != nil {
 		db.Close()
 		cancel()
@@ -70,7 +92,52 @@ func (n *Node) Start() error {
 		return fmt.Errorf("failed to connect to signaling server: %w", err)
 	}
 
+	// Iniciar goroutine de descoberta periódica
+	go n.discoveryLoop()
+
 	return nil
+}
+
+// discoveryLoop executa descoberta periódica de peers
+func (n *Node) discoveryLoop() {
+	ticker := time.NewTicker(n.discoveryInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-n.ctx.Done():
+			return
+		case <-ticker.C:
+			n.runDiscovery()
+		}
+	}
+}
+
+// runDiscovery executa uma rodada de descoberta
+func (n *Node) runDiscovery() {
+	// Verificar se precisa de mais peers
+	if n.discovery.NeedsMorePeers() {
+		fmt.Printf("[%s] Need more peers, requesting peer list\n", n.ID)
+		n.webRTC.RequestPeerList()
+	}
+
+	// Verificar se tem peers demais e desconectar alguns
+	if !n.discovery.ShouldAcceptNewPeer() {
+		peers := n.GetPeers()
+		peerIDs := make([]string, len(peers))
+		for i, p := range peers {
+			peerIDs[i] = p.ID
+		}
+
+		toDisconnect := n.discovery.SelectPeersToDisconnect(peerIDs)
+		for _, peerID := range toDisconnect {
+			fmt.Printf("[%s] Disconnecting peer %s (over limit)\n", n.ID, peerID)
+			n.webRTC.DisconnectPeer(peerID)
+		}
+	}
+
+	// Imprimir estatísticas
+	n.discovery.PrintStats()
 }
 
 // Stop para o nó e limpa recursos
@@ -97,6 +164,7 @@ func (n *Node) AddPeer(peer *network.Peer) {
 	n.peersMutex.Lock()
 	defer n.peersMutex.Unlock()
 	n.peers[peer.ID] = peer
+	n.discovery.MarkPeerConnected(peer.ID)
 	fmt.Printf("Peer %s connected to node %s\n", peer.ID, n.ID)
 }
 
@@ -105,6 +173,7 @@ func (n *Node) RemovePeer(peerID string) {
 	n.peersMutex.Lock()
 	defer n.peersMutex.Unlock()
 	delete(n.peers, peerID)
+	n.discovery.MarkPeerDisconnected(peerID)
 	fmt.Printf("Peer %s disconnected from node %s\n", peerID, n.ID)
 }
 

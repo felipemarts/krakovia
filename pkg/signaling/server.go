@@ -95,6 +95,8 @@ func (s *Server) sendPeerList(client *Client) {
 		}
 	}
 
+	fmt.Printf("Sending peer list to %s: %v\n", client.ID, peerList)
+
 	msg := Message{
 		Type:     "peer-list",
 		PeerList: peerList,
@@ -108,7 +110,9 @@ func (s *Server) sendPeerList(client *Client) {
 
 	select {
 	case client.Send <- data:
+		fmt.Printf("Peer list sent to %s\n", client.ID)
 	default:
+		fmt.Printf("Failed to send peer list to %s (channel blocked)\n", client.ID)
 		close(client.Send)
 		delete(s.clients, client.ID)
 	}
@@ -184,6 +188,10 @@ func (s *Server) readPump(client *Client) {
 			// Registrar cliente
 			client.ID = msg.From
 			s.register <- client
+
+		case "get-peers":
+			// Cliente solicitou lista de peers
+			s.sendPeerList(client)
 
 		case "offer", "answer", "ice":
 			// Encaminhar mensagem para o destinatário

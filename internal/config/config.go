@@ -12,6 +12,9 @@ type NodeConfig struct {
 	Address         string `json:"address"`
 	DBPath          string `json:"db_path"`
 	SignalingServer string `json:"signaling_server"`
+	MaxPeers        int    `json:"max_peers"`         // Máximo de peers conectados (0 = ilimitado)
+	MinPeers        int    `json:"min_peers"`         // Mínimo de peers desejado
+	DiscoveryInterval int  `json:"discovery_interval"` // Intervalo de descoberta em segundos
 }
 
 // LoadNodeConfig carrega a configuração de um arquivo JSON
@@ -38,6 +41,22 @@ func LoadNodeConfig(filepath string) (*NodeConfig, error) {
 	}
 	if config.SignalingServer == "" {
 		return nil, fmt.Errorf("signaling server address is required")
+	}
+
+	// Valores padrão
+	if config.MaxPeers == 0 {
+		config.MaxPeers = 50 // Padrão: 50 peers
+	}
+	if config.MinPeers == 0 {
+		config.MinPeers = 5 // Padrão: 5 peers mínimo
+	}
+	if config.DiscoveryInterval == 0 {
+		config.DiscoveryInterval = 30 // Padrão: 30 segundos
+	}
+
+	// Validar limites
+	if config.MinPeers > config.MaxPeers {
+		return nil, fmt.Errorf("min_peers (%d) cannot be greater than max_peers (%d)", config.MinPeers, config.MaxPeers)
 	}
 
 	return &config, nil

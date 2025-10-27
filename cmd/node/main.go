@@ -35,10 +35,13 @@ func main() {
 
 	// Configurar nó
 	nodeConfig := node.Config{
-		ID:              cfg.ID,
-		Address:         cfg.Address,
-		DBPath:          cfg.DBPath,
-		SignalingServer: cfg.SignalingServer,
+		ID:                cfg.ID,
+		Address:           cfg.Address,
+		DBPath:            cfg.DBPath,
+		SignalingServer:   cfg.SignalingServer,
+		MaxPeers:          cfg.MaxPeers,
+		MinPeers:          cfg.MinPeers,
+		DiscoveryInterval: cfg.DiscoveryInterval,
 	}
 
 	// Criar nó

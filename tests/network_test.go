@@ -30,17 +30,23 @@ func TestNodeConnection(t *testing.T) {
 
 	// Criar configurações para 2 nós
 	node1Config := node.Config{
-		ID:              "test-node1",
-		Address:         ":9101",
-		DBPath:          "./test-data/node1",
-		SignalingServer: signalingURL,
+		ID:                "test-node1",
+		Address:           ":9101",
+		DBPath:            "./test-data/node1",
+		SignalingServer:   signalingURL,
+		MaxPeers:          10,
+		MinPeers:          1,
+		DiscoveryInterval: 30,
 	}
 
 	node2Config := node.Config{
-		ID:              "test-node2",
-		Address:         ":9102",
-		DBPath:          "./test-data/node2",
-		SignalingServer: signalingURL,
+		ID:                "test-node2",
+		Address:           ":9102",
+		DBPath:            "./test-data/node2",
+		SignalingServer:   signalingURL,
+		MaxPeers:          10,
+		MinPeers:          1,
+		DiscoveryInterval: 30,
 	}
 
 	// Criar nós
@@ -105,10 +111,13 @@ func TestMultipleNodesConnection(t *testing.T) {
 	// Criar e iniciar nós com delay entre cada um
 	for i := 0; i < numNodes; i++ {
 		config := node.Config{
-			ID:              fmt.Sprintf("test-node%d", i+1),
-			Address:         fmt.Sprintf(":920%d", i+1),
-			DBPath:          fmt.Sprintf("./test-data/node%d", i+1),
-			SignalingServer: "ws://localhost:9200/ws",
+			ID:                fmt.Sprintf("test-node%d", i+1),
+			Address:           fmt.Sprintf(":920%d", i+1),
+			DBPath:            fmt.Sprintf("./test-data/node%d", i+1),
+			SignalingServer:   "ws://localhost:9200/ws",
+			MaxPeers:          10,
+			MinPeers:          2,
+			DiscoveryInterval: 30,
 		}
 
 		n, err := node.NewNode(config)
@@ -159,22 +168,31 @@ func TestMessageBroadcast(t *testing.T) {
 	// Criar 3 nós
 	configs := []node.Config{
 		{
-			ID:              "broadcast-node1",
-			Address:         ":9301",
-			DBPath:          "./test-data/broadcast-node1",
-			SignalingServer: "ws://localhost:9300/ws",
+			ID:                "broadcast-node1",
+			Address:           ":9301",
+			DBPath:            "./test-data/broadcast-node1",
+			SignalingServer:   "ws://localhost:9300/ws",
+			MaxPeers:          10,
+			MinPeers:          2,
+			DiscoveryInterval: 30,
 		},
 		{
-			ID:              "broadcast-node2",
-			Address:         ":9302",
-			DBPath:          "./test-data/broadcast-node2",
-			SignalingServer: "ws://localhost:9300/ws",
+			ID:                "broadcast-node2",
+			Address:           ":9302",
+			DBPath:            "./test-data/broadcast-node2",
+			SignalingServer:   "ws://localhost:9300/ws",
+			MaxPeers:          10,
+			MinPeers:          2,
+			DiscoveryInterval: 30,
 		},
 		{
-			ID:              "broadcast-node3",
-			Address:         ":9303",
-			DBPath:          "./test-data/broadcast-node3",
-			SignalingServer: "ws://localhost:9300/ws",
+			ID:                "broadcast-node3",
+			Address:           ":9303",
+			DBPath:            "./test-data/broadcast-node3",
+			SignalingServer:   "ws://localhost:9300/ws",
+			MaxPeers:          10,
+			MinPeers:          2,
+			DiscoveryInterval: 30,
 		},
 	}
 
@@ -240,17 +258,23 @@ func TestNodeReconnection(t *testing.T) {
 
 	// Criar 2 nós
 	node1Config := node.Config{
-		ID:              "reconnect-node1",
-		Address:         ":9401",
-		DBPath:          "./test-data/reconnect-node1",
-		SignalingServer: "ws://localhost:9400/ws",
+		ID:                "reconnect-node1",
+		Address:           ":9401",
+		DBPath:            "./test-data/reconnect-node1",
+		SignalingServer:   "ws://localhost:9400/ws",
+		MaxPeers:          10,
+		MinPeers:          1,
+		DiscoveryInterval: 30,
 	}
 
 	node2Config := node.Config{
-		ID:              "reconnect-node2",
-		Address:         ":9402",
-		DBPath:          "./test-data/reconnect-node2",
-		SignalingServer: "ws://localhost:9400/ws",
+		ID:                "reconnect-node2",
+		Address:           ":9402",
+		DBPath:            "./test-data/reconnect-node2",
+		SignalingServer:   "ws://localhost:9400/ws",
+		MaxPeers:          10,
+		MinPeers:          1,
+		DiscoveryInterval: 30,
 	}
 
 	n1, err := node.NewNode(node1Config)
