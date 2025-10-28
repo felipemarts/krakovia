@@ -191,16 +191,13 @@ stats := node.GetWebRTC().GetGossipStats()
 ## Desenvolvimento
 
 ### Build
-- `make build`: Gera os binários em `bin/` (`bin/node` e `bin/signaling`).
 - Alternativa direta: `go build ./cmd/...`.
 
 ### Testes
-- `make test`: Executa os testes localizados em `./tests` com verbosidade.
-- Para rodar todos os testes do módulo: `go test ./...`.
+- Para rodar todos os testes do módulo: `go test ./... -v -timeout 30s`.
 
 ### Lint
 - `golangci-lint run --timeout=5m`: Executa as verificações estáticas (requer `golangci-lint` instalado).
-- Você pode instalar via `brew install golangci-lint` (macOS) ou consultar as instruções oficiais em https://golangci-lint.run/usage/install/.
 
 ## Licença
 

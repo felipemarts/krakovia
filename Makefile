@@ -1,4 +1,4 @@
-.PHONY: help build test clean run-signaling run-node1 run-node2 run-node3 deps
+.PHONY: help build test clean run-signaling run-node1 run-node2 run-node3 deps wallet-gen
 
 help:
 	@echo "Krakovia Blockchain - Comandos disponíveis:"
@@ -6,7 +6,9 @@ help:
 	@echo "  make deps            - Baixar dependências"
 	@echo "  make build           - Compilar binários"
 	@echo "  make test            - Executar testes"
+	@echo "  make test-all        - Executar todos os testes (incluindo unitários)"
 	@echo "  make clean           - Limpar arquivos gerados"
+	@echo "  make wallet-gen      - Gerar uma nova carteira"
 	@echo "  make run-signaling   - Iniciar servidor de signaling"
 	@echo "  make run-node1       - Iniciar nó 1"
 	@echo "  make run-node2       - Iniciar nó 2"
@@ -22,10 +24,19 @@ build:
 	@echo "Compilando binários..."
 	go build -o bin/signaling cmd/signaling/main.go
 	go build -o bin/node cmd/node/main.go
+	go build -o bin/wallet-gen cmd/wallet-gen/main.go
 
 test:
-	@echo "Executando testes..."
+	@echo "Executando testes de integração..."
 	go test ./tests -v -timeout 60s
+
+test-all:
+	@echo "Executando todos os testes..."
+	go test ./pkg/wallet ./pkg/blockchain ./tests -v -timeout 60s
+
+wallet-gen:
+	@echo "Gerando nova carteira..."
+	go run cmd/wallet-gen/main.go
 
 test-clean:
 	@echo "Limpando dados de teste..."
