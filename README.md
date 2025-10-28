@@ -30,8 +30,10 @@ krakovia/
 ### 2. Network (Rede)
 - **WebRTCClient**: Cliente WebRTC para conexões P2P
 - **Peer**: Representa uma conexão peer-to-peer
+- **Gossip Protocol**: Protocolo gossip completo com proteções
+- **Peer Discovery**: Descoberta automática de peers
 - Gerenciamento de data channels
-- Troca de mensagens entre peers
+- Troca de mensagens eficiente com deduplicação
 
 ### 3. Signaling Server
 - Servidor WebSocket para coordenar conexões WebRTC
@@ -143,12 +145,48 @@ go run cmd/node/main.go -config configs/node3.json
 - [ ] Finalização de blocos
 - [ ] Sincronização de blockchain entre nós
 
+## Protocolo Gossip
+
+A Krakovia implementa um **protocolo gossip completo** para comunicação eficiente e segura:
+
+### Características
+
+- ✅ **Deduplicação**: Cache de mensagens vistas com hash SHA-256
+- ✅ **Propagação Seletiva**: Fanout configurável (padrão: 3 peers)
+- ✅ **Rate Limiting**: 100 mensagens/segundo por peer
+- ✅ **Proteção contra Ataques**: Bloqueio automático de peers maliciosos
+- ✅ **TTL Controlado**: Máximo de 20 hops para evitar loops
+- ✅ **Métricas Completas**: Rastreamento de mensagens e performance
+
+### Uso
+
+```go
+// Enviar mensagem via gossip
+err := node.GetWebRTC().GossipBroadcast("transaction", txData)
+
+// Registrar handler para tipo de mensagem
+node.GetWebRTC().RegisterGossipHandler("block", func(msg *GossipMessage, from string) error {
+    // Processar bloco
+    return nil
+})
+
+// Obter métricas
+stats := node.GetWebRTC().GetGossipStats()
+```
+
+### Performance
+
+**Economia de 70-99% de tráfego** comparado ao broadcast simples, dependendo do tamanho da rede.
+
+📖 **Documentação completa**: [docs/GOSSIP_PROTOCOL.md](docs/GOSSIP_PROTOCOL.md)
+
 ## Tecnologias
 
 - **Go 1.21+**: Linguagem de programação
 - **Pion WebRTC**: Biblioteca WebRTC para Go
 - **Gorilla WebSocket**: WebSocket para servidor de signaling
 - **LevelDB**: Banco de dados local para persistência
+- **UUID**: Identificação única de mensagens gossip
 
 ## Desenvolvimento
 

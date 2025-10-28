@@ -25,6 +25,7 @@ type WebRTCClient struct {
 	signalingMux    sync.Mutex
 	handler         PeerHandler
 	discovery       *PeerDiscovery
+	gossipManager   *GossipManager
 }
 
 // SignalingMessage representa uma mensagem do servidor de signaling
@@ -52,6 +53,10 @@ func NewWebRTCClientWithDiscovery(id, signalingServer string, handler PeerHandle
 		},
 	}
 
+	// Criar gerenciador gossip
+	gossipConfig := DefaultGossipConfig()
+	gossipManager := NewGossipManager(id, gossipConfig)
+
 	return &WebRTCClient{
 		ID:              id,
 		SignalingServer: signalingServer,
@@ -59,6 +64,7 @@ func NewWebRTCClientWithDiscovery(id, signalingServer string, handler PeerHandle
 		peers:           make(map[string]*Peer),
 		handler:         handler,
 		discovery:       discovery,
+		gossipManager:   gossipManager,
 	}, nil
 }
 
@@ -179,6 +185,13 @@ func (w *WebRTCClient) ConnectToPeer(peerID string) error {
 	peer.OnDisconnect = func(id string) {
 		w.removePeer(id)
 	}
+	peer.OnMessage = func(msgType string, data []byte) {
+		// Se for mensagem gossip, processar através do gossip manager
+		if msgType == "gossip" {
+			w.handleGossipMessage(data, peerID)
+		}
+		// Outros tipos de mensagem podem ser tratados aqui
+	}
 
 	// Configurar ICE candidate handler
 	peerConnection.OnICECandidate(func(candidate *webrtc.ICECandidate) {
@@ -218,6 +231,13 @@ func (w *WebRTCClient) handleOffer(peerID string, sdp *webrtc.SessionDescription
 	peer := NewPeer(peerID, peerConnection)
 	peer.OnDisconnect = func(id string) {
 		w.removePeer(id)
+	}
+	peer.OnMessage = func(msgType string, data []byte) {
+		// Se for mensagem gossip, processar através do gossip manager
+		if msgType == "gossip" {
+			w.handleGossipMessage(data, peerID)
+		}
+		// Outros tipos de mensagem podem ser tratados aqui
 	}
 
 	// Handler para data channel recebido
@@ -396,6 +416,11 @@ func (w *WebRTCClient) DisconnectPeer(peerID string) error {
 
 // Close fecha todas as conexões
 func (w *WebRTCClient) Close() {
+	// Parar gossip manager
+	if w.gossipManager != nil {
+		w.gossipManager.Stop()
+	}
+
 	w.peersMutex.Lock()
 	defer w.peersMutex.Unlock()
 
@@ -425,7 +450,8 @@ func (w *WebRTCClient) SendToPeer(peerID string, msgType string, data []byte) er
 	return peer.SendMessage(msgType, data)
 }
 
-// Broadcast envia uma mensagem para todos os peers
+// Broadcast envia uma mensagem para todos os peers (método legado - deprecado)
+// Use GossipBroadcast para comunicação eficiente
 func (w *WebRTCClient) Broadcast(msgType string, data []byte) {
 	w.peersMutex.RLock()
 	defer w.peersMutex.RUnlock()
@@ -435,4 +461,110 @@ func (w *WebRTCClient) Broadcast(msgType string, data []byte) {
 			fmt.Printf("Failed to send message to peer %s: %v\n", peer.ID, err)
 		}
 	}
+}
+
+// GossipBroadcast envia uma mensagem usando o protocolo gossip
+func (w *WebRTCClient) GossipBroadcast(msgType string, data []byte) error {
+	// Criar mensagem gossip
+	gossipMsg, err := w.gossipManager.CreateMessage(msgType, data)
+	if err != nil {
+		return fmt.Errorf("failed to create gossip message: %w", err)
+	}
+
+	// Obter lista de peers
+	w.peersMutex.RLock()
+	peerIDs := make([]string, 0, len(w.peers))
+	for peerID := range w.peers {
+		peerIDs = append(peerIDs, peerID)
+	}
+	w.peersMutex.RUnlock()
+
+	// Selecionar peers para fanout inicial
+	selectedPeers := w.gossipManager.SelectPeersFromList(peerIDs, "")
+
+	// Enviar para peers selecionados
+	return w.sendGossipToPeers(gossipMsg, selectedPeers)
+}
+
+// handleGossipMessage processa uma mensagem gossip recebida
+func (w *WebRTCClient) handleGossipMessage(msgData []byte, fromPeer string) {
+	// Processar mensagem através do gossip manager
+	gossipMsg, peersToPropagate, err := w.gossipManager.HandleIncomingMessage(msgData, fromPeer)
+	if err != nil {
+		// Erro silencioso para mensagens duplicadas (esperado no gossip)
+		if err.Error() != fmt.Sprintf("duplicate message detected: %s", "") {
+			fmt.Printf("Error handling gossip message from %s: %v\n", fromPeer, err)
+		}
+		return
+	}
+
+	// Se deve propagar, enviar para outros peers
+	if len(peersToPropagate) > 0 {
+		// Obter lista de peers conectados
+		w.peersMutex.RLock()
+		connectedPeers := make([]string, 0, len(w.peers))
+		for peerID := range w.peers {
+			connectedPeers = append(connectedPeers, peerID)
+		}
+		w.peersMutex.RUnlock()
+
+		// Selecionar peers para propagar (excluindo quem enviou)
+		peersToSend := w.gossipManager.SelectPeersFromList(connectedPeers, fromPeer)
+
+		// Propagar para peers selecionados
+		if err := w.sendGossipToPeers(gossipMsg, peersToSend); err != nil {
+			fmt.Printf("Failed to propagate gossip message: %v\n", err)
+		}
+	}
+}
+
+// sendGossipToPeers envia uma mensagem gossip para uma lista de peers
+func (w *WebRTCClient) sendGossipToPeers(msg *GossipMessage, peerIDs []string) error {
+	// Serializar mensagem
+	msgData, err := msg.ToJSON()
+	if err != nil {
+		return fmt.Errorf("failed to serialize message: %w", err)
+	}
+
+	w.peersMutex.RLock()
+	defer w.peersMutex.RUnlock()
+
+	var lastErr error
+	successCount := 0
+
+	for _, peerID := range peerIDs {
+		peer, exists := w.peers[peerID]
+		if !exists {
+			continue
+		}
+
+		// Enviar como tipo "gossip"
+		if err := peer.SendMessage("gossip", msgData); err != nil {
+			lastErr = err
+			fmt.Printf("Failed to send gossip to peer %s: %v\n", peerID, err)
+		} else {
+			successCount++
+		}
+	}
+
+	if successCount == 0 && lastErr != nil {
+		return fmt.Errorf("failed to send to any peer: %w", lastErr)
+	}
+
+	return nil
+}
+
+// RegisterGossipHandler registra um handler para mensagens gossip
+func (w *WebRTCClient) RegisterGossipHandler(msgType string, handler MessageHandler) {
+	w.gossipManager.RegisterHandler(msgType, handler)
+}
+
+// GetGossipMetrics retorna métricas do protocolo gossip
+func (w *WebRTCClient) GetGossipMetrics() map[string]int64 {
+	return w.gossipManager.GetMetrics()
+}
+
+// GetGossipStats retorna estatísticas formatadas do gossip
+func (w *WebRTCClient) GetGossipStats() string {
+	return w.gossipManager.GetStats()
 }

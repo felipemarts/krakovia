@@ -204,3 +204,8 @@ func (n *Node) BroadcastMessage(msgType string, data []byte) {
 		}
 	}
 }
+
+// GetWebRTC retorna o cliente WebRTC do nó
+func (n *Node) GetWebRTC() *network.WebRTCClient {
+	return n.webRTC
+}
