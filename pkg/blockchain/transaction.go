@@ -189,9 +189,15 @@ func (tx *Transaction) Validate() error {
 		return fmt.Errorf("transaction timestamp is too far in the future")
 	}
 
-	// Valida que remetente e destinatário são diferentes
+	// Parse transaction data para verificar se é stake operation
+	txData, _ := DeserializeTransactionData(tx.Data)
+
+	// Valida que remetente e destinatário são diferentes (exceto para operações de stake)
 	if tx.From == tx.To {
-		return fmt.Errorf("sender and receiver cannot be the same")
+		// Permite From == To apenas para stake/unstake
+		if txData == nil || !txData.IsStakeOperation() {
+			return fmt.Errorf("sender and receiver cannot be the same")
+		}
 	}
 
 	return nil
