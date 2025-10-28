@@ -280,7 +280,7 @@ func TestTransactionSerializeDeserialize(t *testing.T) {
 func TestTransactionEqual(t *testing.T) {
 	w, _ := wallet.NewWallet()
 	tx1 := NewTransaction(w.GetAddress(), "recipient_addr", 100, 1, 0, "payment")
-	tx1.Sign(w)
+	_ = tx1.Sign(w)
 
 	tx2 := tx1.Copy()
 
@@ -289,7 +289,7 @@ func TestTransactionEqual(t *testing.T) {
 	}
 
 	tx3 := NewTransaction(w.GetAddress(), "other_addr", 100, 1, 0, "payment")
-	tx3.Sign(w)
+	_ = tx3.Sign(w)
 
 	if tx1.Equal(tx3) {
 		t.Error("Transactions should not be equal")
@@ -299,7 +299,7 @@ func TestTransactionEqual(t *testing.T) {
 func TestTransactionCopy(t *testing.T) {
 	w, _ := wallet.NewWallet()
 	tx := NewTransaction(w.GetAddress(), "recipient_addr", 100, 1, 0, "payment")
-	tx.Sign(w)
+	_ = tx.Sign(w)
 
 	txCopy := tx.Copy()
 
@@ -316,10 +316,10 @@ func TestTransactionSliceMerkleRoot(t *testing.T) {
 	w, _ := wallet.NewWallet()
 
 	tx1 := NewTransaction(w.GetAddress(), "addr1", 100, 1, 0, "tx1")
-	tx1.Sign(w)
+	_ = tx1.Sign(w)
 
 	tx2 := NewTransaction(w.GetAddress(), "addr2", 200, 1, 1, "tx2")
-	tx2.Sign(w)
+	_ = tx2.Sign(w)
 
 	txs := TransactionSlice{tx1, tx2}
 
@@ -367,10 +367,10 @@ func TestTransactionSliceContainsID(t *testing.T) {
 	w, _ := wallet.NewWallet()
 
 	tx1 := NewTransaction(w.GetAddress(), "addr1", 100, 1, 0, "tx1")
-	tx1.Sign(w)
+	_ = tx1.Sign(w)
 
 	tx2 := NewTransaction(w.GetAddress(), "addr2", 200, 2, 1, "tx2")
-	tx2.Sign(w)
+	_ = tx2.Sign(w)
 
 	txs := TransactionSlice{tx1, tx2}
 
@@ -391,10 +391,10 @@ func TestTransactionSliceHasDuplicates(t *testing.T) {
 	w, _ := wallet.NewWallet()
 
 	tx1 := NewTransaction(w.GetAddress(), "addr1", 100, 1, 0, "tx1")
-	tx1.Sign(w)
+	_ = tx1.Sign(w)
 
 	tx2 := NewTransaction(w.GetAddress(), "addr2", 200, 2, 1, "tx2")
-	tx2.Sign(w)
+	_ = tx2.Sign(w)
 
 	// Sem duplicatas
 	txs := TransactionSlice{tx1, tx2}
@@ -413,10 +413,10 @@ func TestTransactionSliceValidate(t *testing.T) {
 	w, _ := wallet.NewWallet()
 
 	tx1 := NewTransaction(w.GetAddress(), "addr1", 100, 1, 0, "tx1")
-	tx1.Sign(w)
+	_ = tx1.Sign(w)
 
 	tx2 := NewTransaction(w.GetAddress(), "addr2", 200, 2, 1, "tx2")
-	tx2.Sign(w)
+	_ = tx2.Sign(w)
 
 	txs := TransactionSlice{tx1, tx2}
 
@@ -427,7 +427,7 @@ func TestTransactionSliceValidate(t *testing.T) {
 
 	// Adiciona transação inválida
 	invalidTx := NewTransaction(w.GetAddress(), "addr3", 0, 1, 2, "invalid")
-	invalidTx.Sign(w)
+	_ = invalidTx.Sign(w)
 
 	invalidTxs := TransactionSlice{tx1, invalidTx}
 	err = invalidTxs.Validate()
@@ -442,29 +442,29 @@ func BenchmarkTransactionSign(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		tx := NewTransaction(w.GetAddress(), "recipient", 100, 1, uint64(i), "payment")
-		tx.Sign(w)
+		_ = tx.Sign(w)
 	}
 }
 
 func BenchmarkTransactionVerify(b *testing.B) {
 	w, _ := wallet.NewWallet()
 	tx := NewTransaction(w.GetAddress(), "recipient", 100, 1, 0, "payment")
-	tx.Sign(w)
+	_ = tx.Sign(w)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		tx.Verify()
+		_ = tx.Verify()
 	}
 }
 
 func BenchmarkTransactionCalculateHash(b *testing.B) {
 	w, _ := wallet.NewWallet()
 	tx := NewTransaction(w.GetAddress(), "recipient", 100, 1, 0, "payment")
-	tx.Sign(w)
+	_ = tx.Sign(w)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		tx.CalculateHash()
+		_, _ = tx.CalculateHash()
 	}
 }
 
@@ -474,7 +474,7 @@ func BenchmarkMerkleRoot(b *testing.B) {
 	var txs TransactionSlice
 	for i := 0; i < 100; i++ {
 		tx := NewTransaction(w.GetAddress(), "recipient", 100, 1, uint64(i), "payment")
-		tx.Sign(w)
+		_ = tx.Sign(w)
 		txs = append(txs, tx)
 	}
 

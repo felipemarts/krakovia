@@ -110,7 +110,7 @@ func TestBlockVerifyTransactions(t *testing.T) {
 	coinbase := NewCoinbaseTransaction(w.GetAddress(), 50, 1)
 
 	tx1 := NewTransaction(w.GetAddress(), "addr1", 100, 1, 0, "tx1")
-	tx1.Sign(w)
+	_ = tx1.Sign(w)
 
 	txs := TransactionSlice{coinbase, tx1}
 
@@ -127,7 +127,7 @@ func TestBlockVerifyTransactionsNoCoinbase(t *testing.T) {
 	w, _ := wallet.NewWallet()
 
 	tx1 := NewTransaction(w.GetAddress(), "addr1", 100, 1, 0, "tx1")
-	tx1.Sign(w)
+	_ = tx1.Sign(w)
 
 	txs := TransactionSlice{tx1}
 
@@ -161,7 +161,7 @@ func TestBlockVerifyTransactionsDuplicates(t *testing.T) {
 	coinbase := NewCoinbaseTransaction(w.GetAddress(), 50, 1)
 
 	tx1 := NewTransaction(w.GetAddress(), "addr1", 100, 1, 0, "tx1")
-	tx1.Sign(w)
+	_ = tx1.Sign(w)
 
 	txs := TransactionSlice{coinbase, tx1, tx1} // Duplicata
 
@@ -180,7 +180,7 @@ func TestBlockValidate(t *testing.T) {
 	coinbase := NewCoinbaseTransaction(w.GetAddress(), 50, 1)
 
 	tx1 := NewTransaction(w.GetAddress(), "addr1", 100, 1, 0, "tx1")
-	tx1.Sign(w)
+	_ = tx1.Sign(w)
 
 	txs := TransactionSlice{coinbase, tx1}
 
@@ -330,10 +330,10 @@ func TestBlockGetRegularTransactions(t *testing.T) {
 	coinbase := NewCoinbaseTransaction(w.GetAddress(), 50, 1)
 
 	tx1 := NewTransaction(w.GetAddress(), "addr1", 100, 1, 0, "tx1")
-	tx1.Sign(w)
+	_ = tx1.Sign(w)
 
 	tx2 := NewTransaction(w.GetAddress(), "addr2", 200, 2, 1, "tx2")
-	tx2.Sign(w)
+	_ = tx2.Sign(w)
 
 	txs := TransactionSlice{coinbase, tx1, tx2}
 
@@ -358,10 +358,10 @@ func TestBlockTotalFees(t *testing.T) {
 	coinbase := NewCoinbaseTransaction(w.GetAddress(), 50, 1)
 
 	tx1 := NewTransaction(w.GetAddress(), "addr1", 100, 1, 0, "tx1")
-	tx1.Sign(w)
+	_ = tx1.Sign(w)
 
 	tx2 := NewTransaction(w.GetAddress(), "addr2", 200, 2, 1, "tx2")
-	tx2.Sign(w)
+	_ = tx2.Sign(w)
 
 	txs := TransactionSlice{coinbase, tx1, tx2}
 
@@ -428,7 +428,7 @@ func TestBlockSliceGetByHeight(t *testing.T) {
 
 	found := blocks.GetByHeight(1)
 	if found == nil {
-		t.Error("Block with height 1 not found")
+		t.Fatal("Block with height 1 not found")
 	}
 
 	if found.Header.Height != 1 {
@@ -449,7 +449,7 @@ func TestBlockSliceGetByHash(t *testing.T) {
 
 	found := blocks.GetByHash("hash1")
 	if found == nil {
-		t.Error("Block with hash 'hash1' not found")
+		t.Fatal("Block with hash 'hash1' not found")
 	}
 
 	if found.Hash != "hash1" {
@@ -467,7 +467,7 @@ func TestBlockSliceValidateChain(t *testing.T) {
 	// Bloco 1
 	coinbase1 := NewCoinbaseTransaction(w.GetAddress(), 50, 1)
 	tx1 := NewTransaction(w.GetAddress(), "addr1", 100, 1, 0, "tx1")
-	tx1.Sign(w)
+	_ = tx1.Sign(w)
 	block1 := NewBlock(1, genesis.Hash, TransactionSlice{coinbase1, tx1}, w.GetAddress())
 	hash1, _ := block1.CalculateHash()
 	block1.Hash = hash1
@@ -475,7 +475,7 @@ func TestBlockSliceValidateChain(t *testing.T) {
 	// Bloco 2
 	coinbase2 := NewCoinbaseTransaction(w.GetAddress(), 50, 2)
 	tx2 := NewTransaction(w.GetAddress(), "addr2", 200, 2, 1, "tx2")
-	tx2.Sign(w)
+	_ = tx2.Sign(w)
 	block2 := NewBlock(2, block1.Hash, TransactionSlice{coinbase2, tx2}, w.GetAddress())
 	hash2, _ := block2.CalculateHash()
 	block2.Hash = hash2
@@ -523,7 +523,7 @@ func TestBlockSliceLastBlock(t *testing.T) {
 
 	last := blocks.LastBlock()
 	if last == nil {
-		t.Error("Last block is nil")
+		t.Fatal("Last block is nil")
 	}
 
 	if last.Header.Height != 2 {
@@ -553,7 +553,7 @@ func BenchmarkBlockCalculateHash(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		block.CalculateHash()
+		_, _ = block.CalculateHash()
 	}
 }
 
@@ -561,7 +561,7 @@ func BenchmarkBlockVerify(b *testing.B) {
 	w, _ := wallet.NewWallet()
 	coinbase := NewCoinbaseTransaction(w.GetAddress(), 50, 1)
 	tx := NewTransaction(w.GetAddress(), "addr", 100, 1, 0, "tx")
-	tx.Sign(w)
+	_ = tx.Sign(w)
 	txs := TransactionSlice{coinbase, tx}
 
 	block := NewBlock(1, "prev_hash", txs, w.GetAddress())
@@ -570,7 +570,7 @@ func BenchmarkBlockVerify(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		block.Validate()
+		_ = block.Validate()
 	}
 }
 
@@ -583,13 +583,13 @@ func BenchmarkBlockWithManyTransactions(b *testing.B) {
 
 	for i := 0; i < 1000; i++ {
 		tx := NewTransaction(w.GetAddress(), "addr", 100, 1, uint64(i), "tx")
-		tx.Sign(w)
+		_ = tx.Sign(w)
 		txs = append(txs, tx)
 	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		block := NewBlock(1, "prev_hash", txs, w.GetAddress())
-		block.CalculateHash()
+		_, _ = block.CalculateHash()
 	}
 }

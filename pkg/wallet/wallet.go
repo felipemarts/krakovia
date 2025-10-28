@@ -37,9 +37,10 @@ func NewWalletFromPrivateKey(privateKeyHex string) (*Wallet, error) {
 	}
 
 	privateKey := new(ecdsa.PrivateKey)
-	privateKey.PublicKey.Curve = elliptic.P256()
+	curve := elliptic.P256()
+	privateKey.Curve = curve
 	privateKey.D = new(big.Int).SetBytes(privateKeyBytes)
-	privateKey.PublicKey.X, privateKey.PublicKey.Y = privateKey.PublicKey.Curve.ScalarBaseMult(privateKeyBytes)
+	privateKey.X, privateKey.Y = curve.ScalarBaseMult(privateKeyBytes)
 
 	return &Wallet{
 		PrivateKey: privateKey,

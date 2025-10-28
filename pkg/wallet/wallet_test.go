@@ -188,7 +188,7 @@ func TestPublicKeyFromHex(t *testing.T) {
 	}
 
 	if publicKey == nil {
-		t.Error("Public key is nil")
+		t.Fatal("Public key is nil")
 	}
 
 	// Verifica que os valores X e Y são iguais
