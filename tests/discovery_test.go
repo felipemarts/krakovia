@@ -2,9 +2,6 @@ package tests
 
 import (
 	"fmt"
-	"math/rand"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -12,40 +9,11 @@ import (
 	"github.com/krakovia/blockchain/pkg/signaling"
 )
 
-// Funções auxiliares compartilhadas já definidas em network_test.go
-// mas precisamos redefinir aqui para evitar dependências
-
-// getRandomPortDiscovery retorna uma porta aleatória no intervalo 9000-29000
-func getRandomPortDiscovery() int {
-	return 9000 + rand.Intn(20000)
-}
-
-// stopNodeDiscovery para o nó de forma segura, logando se houver erro
-func stopNodeDiscovery(n *node.Node, t *testing.T) {
-	if err := n.Stop(); err != nil {
-		t.Logf("Warning: error stopping node: %v", err)
-	}
-}
-
-// getTempDataDirDiscovery cria um diretório temporário único para o teste
-func getTempDataDirDiscovery(t *testing.T, testName string) string {
-	tempDir := filepath.Join(os.TempDir(), fmt.Sprintf("krakovia-test-%s-%d", testName, time.Now().UnixNano()))
-	if err := os.MkdirAll(tempDir, 0755); err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	t.Cleanup(func() {
-		if err := os.RemoveAll(tempDir); err != nil {
-			t.Logf("Warning: failed to remove temp dir: %v", err)
-		}
-	})
-	return tempDir
-}
-
 // TestPeerLimitEnforcement testa se o limite de peers é respeitado
 func TestPeerLimitEnforcement(t *testing.T) {
-	signalingPort := getRandomPortDiscovery()
+	signalingPort := getRandomPort()
 	signalingURL := fmt.Sprintf("ws://localhost:%d/ws", signalingPort)
-	tempDir := getTempDataDirDiscovery(t, "limit")
+	tempDir := getTempDataDir(t, "limit")
 
 	// Iniciar servidor de signaling
 	server := signaling.NewServer()
@@ -70,21 +38,16 @@ func TestPeerLimitEnforcement(t *testing.T) {
 	nodes := make([]*node.Node, numNodes)
 
 	for i := 0; i < numNodes; i++ {
-		config := node.Config{
-			ID:                fmt.Sprintf("limit-test-node%d", i+1),
-			Address:           fmt.Sprintf(":%d", getRandomPortDiscovery()),
-			DBPath:            filepath.Join(tempDir, fmt.Sprintf("node%d", i+1)),
-			SignalingServer:   signalingURL,
-			MaxPeers:          maxPeers,
-			MinPeers:          minPeers,
-			DiscoveryInterval: 2, // Descoberta rápida para o teste
-		}
+		config := createTestNodeConfig(t, fmt.Sprintf("limit-test-node%d", i+1), signalingURL, tempDir)
+		config.MaxPeers = maxPeers
+		config.MinPeers = minPeers
+		config.DiscoveryInterval = 2 // Descoberta rápida para o teste
 
 		n, err := node.NewNode(config)
 		if err != nil {
 			t.Fatalf("Failed to create node%d: %v", i+1, err)
 		}
-		defer stopNodeDiscovery(n, t)
+		defer stopNode(n, t)
 
 		if err := n.Start(); err != nil {
 			t.Fatalf("Failed to start node%d: %v", i+1, err)
@@ -120,9 +83,9 @@ func TestPeerLimitEnforcement(t *testing.T) {
 
 // TestPeerDiscovery testa a descoberta periódica de peers
 func TestPeerDiscovery(t *testing.T) {
-	signalingPort := getRandomPortDiscovery()
+	signalingPort := getRandomPort()
 	signalingURL := fmt.Sprintf("ws://localhost:%d/ws", signalingPort)
-	tempDir := getTempDataDirDiscovery(t, "discovery")
+	tempDir := getTempDataDir(t, "discovery")
 
 	// Iniciar servidor de signaling
 	server := signaling.NewServer()
@@ -140,37 +103,27 @@ func TestPeerDiscovery(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Criar 2 nós inicialmente
-	node1Config := node.Config{
-		ID:                "discovery-node1",
-		Address:           fmt.Sprintf(":%d", getRandomPortDiscovery()),
-		DBPath:            filepath.Join(tempDir, "node1"),
-		SignalingServer:   signalingURL,
-		MaxPeers:          10,
-		MinPeers:          2,
-		DiscoveryInterval: 2, // Descoberta rápida
-	}
+	node1Config := createTestNodeConfig(t, "discovery-node1", signalingURL, tempDir)
+	node1Config.MaxPeers = 10
+	node1Config.MinPeers = 2
+	node1Config.DiscoveryInterval = 2 // Descoberta rápida
 
-	node2Config := node.Config{
-		ID:                "discovery-node2",
-		Address:           fmt.Sprintf(":%d", getRandomPortDiscovery()),
-		DBPath:            filepath.Join(tempDir, "node2"),
-		SignalingServer:   signalingURL,
-		MaxPeers:          10,
-		MinPeers:          2,
-		DiscoveryInterval: 2,
-	}
+	node2Config := createTestNodeConfig(t, "discovery-node2", signalingURL, tempDir)
+	node2Config.MaxPeers = 10
+	node2Config.MinPeers = 2
+	node2Config.DiscoveryInterval = 2
 
 	n1, err := node.NewNode(node1Config)
 	if err != nil {
 		t.Fatalf("Failed to create node1: %v", err)
 	}
-	defer stopNodeDiscovery(n1, t)
+	defer stopNode(n1, t)
 
 	n2, err := node.NewNode(node2Config)
 	if err != nil {
 		t.Fatalf("Failed to create node2: %v", err)
 	}
-	defer stopNodeDiscovery(n2, t)
+	defer stopNode(n2, t)
 
 	if err := n1.Start(); err != nil {
 		t.Fatalf("Failed to start node1: %v", err)
@@ -187,21 +140,16 @@ func TestPeerDiscovery(t *testing.T) {
 	t.Logf("Initial state - Node1: %d peers, Node2: %d peers", peers1Before, peers2Before)
 
 	// Adicionar um terceiro nó
-	node3Config := node.Config{
-		ID:                "discovery-node3",
-		Address:           fmt.Sprintf(":%d", getRandomPortDiscovery()),
-		DBPath:            filepath.Join(tempDir, "node3"),
-		SignalingServer:   signalingURL,
-		MaxPeers:          10,
-		MinPeers:          2,
-		DiscoveryInterval: 2,
-	}
+	node3Config := createTestNodeConfig(t, "discovery-node3", signalingURL, tempDir)
+	node3Config.MaxPeers = 10
+	node3Config.MinPeers = 2
+	node3Config.DiscoveryInterval = 2
 
 	n3, err := node.NewNode(node3Config)
 	if err != nil {
 		t.Fatalf("Failed to create node3: %v", err)
 	}
-	defer stopNodeDiscovery(n3, t)
+	defer stopNode(n3, t)
 
 	if err := n3.Start(); err != nil {
 		t.Fatalf("Failed to start node3: %v", err)
@@ -229,9 +177,9 @@ func TestPeerDiscovery(t *testing.T) {
 
 // TestMinimumPeersMaintenance testa se os nós mantêm o mínimo de peers
 func TestMinimumPeersMaintenance(t *testing.T) {
-	signalingPort := getRandomPortDiscovery()
+	signalingPort := getRandomPort()
 	signalingURL := fmt.Sprintf("ws://localhost:%d/ws", signalingPort)
-	tempDir := getTempDataDirDiscovery(t, "minpeers")
+	tempDir := getTempDataDir(t, "minpeers")
 
 	// Iniciar servidor de signaling
 	server := signaling.NewServer()
@@ -255,21 +203,16 @@ func TestMinimumPeersMaintenance(t *testing.T) {
 
 	// Criar nós com requisito mínimo de 3 peers
 	for i := 0; i < numNodes; i++ {
-		config := node.Config{
-			ID:                fmt.Sprintf("min-peers-node%d", i+1),
-			Address:           fmt.Sprintf(":%d", getRandomPortDiscovery()),
-			DBPath:            filepath.Join(tempDir, fmt.Sprintf("node%d", i+1)),
-			SignalingServer:   signalingURL,
-			MaxPeers:          10,
-			MinPeers:          minPeers,
-			DiscoveryInterval: 2, // Descoberta rápida
-		}
+		config := createTestNodeConfig(t, fmt.Sprintf("min-peers-node%d", i+1), signalingURL, tempDir)
+		config.MaxPeers = 10
+		config.MinPeers = minPeers
+		config.DiscoveryInterval = 2 // Descoberta rápida
 
 		n, err := node.NewNode(config)
 		if err != nil {
 			t.Fatalf("Failed to create node%d: %v", i+1, err)
 		}
-		defer stopNodeDiscovery(n, t)
+		defer stopNode(n, t)
 
 		if err := n.Start(); err != nil {
 			t.Fatalf("Failed to start node%d: %v", i+1, err)
