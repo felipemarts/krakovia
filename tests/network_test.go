@@ -52,6 +52,11 @@ func TestNodeConnection(t *testing.T) {
 			t.Logf("Signaling server error: %v", err)
 		}
 	}()
+	defer func() {
+		if err := server.Stop(); err != nil {
+			t.Logf("Warning: error stopping signaling server: %v", err)
+		}
+	}()
 
 	// Aguardar servidor iniciar
 	time.Sleep(100 * time.Millisecond)
@@ -131,6 +136,11 @@ func TestMultipleNodesConnection(t *testing.T) {
 			t.Logf("Signaling server error: %v", err)
 		}
 	}()
+	defer func() {
+		if err := server.Stop(); err != nil {
+			t.Logf("Warning: error stopping signaling server: %v", err)
+		}
+	}()
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -194,6 +204,11 @@ func TestMessageBroadcast(t *testing.T) {
 	go func() {
 		if err := server.Start(fmt.Sprintf(":%d", signalingPort)); err != nil {
 			t.Logf("Signaling server error: %v", err)
+		}
+	}()
+	defer func() {
+		if err := server.Stop(); err != nil {
+			t.Logf("Warning: error stopping signaling server: %v", err)
 		}
 	}()
 
@@ -287,6 +302,11 @@ func TestNodeReconnection(t *testing.T) {
 	go func() {
 		if err := server.Start(fmt.Sprintf(":%d", signalingPort)); err != nil {
 			t.Logf("Signaling server error: %v", err)
+		}
+	}()
+	defer func() {
+		if err := server.Stop(); err != nil {
+			t.Logf("Warning: error stopping signaling server: %v", err)
 		}
 	}()
 

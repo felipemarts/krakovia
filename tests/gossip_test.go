@@ -154,6 +154,11 @@ func TestGossipPropagation(t *testing.T) {
 			t.Logf("Signaling server error: %v", err)
 		}
 	}()
+	defer func() {
+		if err := server.Stop(); err != nil {
+			t.Logf("Warning: error stopping signaling server: %v", err)
+		}
+	}()
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -198,11 +203,17 @@ func TestGossipPropagation(t *testing.T) {
 	}
 
 	// Aguardar conexões e data channels
-	time.Sleep(3 * time.Second)
+	time.Sleep(2 * time.Second)
 
 	// Verificar se há peers conectados antes de enviar
 	if len(nodes[0].GetPeers()) == 0 {
 		t.Skip("No peers connected, skipping propagation test")
+	}
+
+	// Log status dos peers antes de enviar
+	t.Logf("Node1 has %d peers connected", len(nodes[0].GetPeers()))
+	for i, n := range nodes {
+		t.Logf("Node%d has %d peers: %v", i+1, len(n.GetPeers()), n.GetPeers())
 	}
 
 	// Node1 envia mensagem gossip
@@ -213,7 +224,7 @@ func TestGossipPropagation(t *testing.T) {
 	}
 
 	// Aguardar propagação
-	time.Sleep(3 * time.Second)
+	time.Sleep(1 * time.Second)
 
 	// Verificar se mensagens foram recebidas
 	mu.Lock()

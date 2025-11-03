@@ -1,11 +1,13 @@
 package signaling
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/pion/webrtc/v3"
@@ -32,6 +34,10 @@ type Server struct {
 	register     chan *Client
 	unregister   chan *Client
 	broadcast    chan []byte
+	httpServer   *http.Server
+	ctx          context.Context
+	cancel       context.CancelFunc
+	wg           sync.WaitGroup
 }
 
 // Message representa uma mensagem de signaling
@@ -46,18 +52,32 @@ type Message struct {
 
 // NewServer cria um novo servidor de signaling
 func NewServer() *Server {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &Server{
 		clients:    make(map[string]*Client),
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
 		broadcast:  make(chan []byte),
+		ctx:        ctx,
+		cancel:     cancel,
 	}
 }
 
 // Run inicia o servidor de signaling
 func (s *Server) Run() {
+	defer s.wg.Done()
 	for {
 		select {
+		case <-s.ctx.Done():
+			// Fechar todos os clientes conectados
+			s.clientsMutex.Lock()
+			for _, client := range s.clients {
+				close(client.Send)
+			}
+			s.clients = make(map[string]*Client)
+			s.clientsMutex.Unlock()
+			return
+
 		case client := <-s.register:
 			s.clientsMutex.Lock()
 			s.clients[client.ID] = client
@@ -245,12 +265,39 @@ func (s *Server) forwardMessage(msg Message) {
 
 // Start inicia o servidor HTTP
 func (s *Server) Start(addr string) error {
+	s.wg.Add(1)
 	go s.Run()
 
 	// Usar um ServeMux próprio ao invés do global para evitar conflitos em testes
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", s.HandleWebSocket)
 
+	s.httpServer = &http.Server{
+		Addr:    addr,
+		Handler: mux,
+	}
+
 	fmt.Printf("Signaling server started on %s\n", addr)
-	return http.ListenAndServe(addr, mux)
+	return s.httpServer.ListenAndServe()
+}
+
+// Stop para o servidor de signaling gracefully
+func (s *Server) Stop() error {
+	if s.cancel != nil {
+		s.cancel()
+	}
+
+	// Desligar o servidor HTTP
+	if s.httpServer != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := s.httpServer.Shutdown(ctx); err != nil {
+			return fmt.Errorf("error shutting down HTTP server: %w", err)
+		}
+	}
+
+	// Aguardar a goroutine Run() terminar
+	s.wg.Wait()
+
+	return nil
 }

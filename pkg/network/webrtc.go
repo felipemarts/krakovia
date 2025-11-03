@@ -222,6 +222,25 @@ func (w *WebRTCClient) ConnectToPeer(peerID string) error {
 func (w *WebRTCClient) handleOffer(peerID string, sdp *webrtc.SessionDescription) {
 	fmt.Printf("Received offer from peer %s\n", peerID)
 
+	// Verificar se já existe uma conexão com este peer (oferta simultânea)
+	w.peersMutex.RLock()
+	existingPeer, exists := w.peers[peerID]
+	w.peersMutex.RUnlock()
+
+	if exists && existingPeer.Connection != nil {
+		// Oferta simultânea detectada. Para evitar duplicação,
+		// apenas o nó com ID lexicograficamente menor aceita a offer.
+		// O outro deve descartar a offer recebida.
+		if w.ID > peerID {
+			// Nosso ID é maior, então mantemos nossa conexão e ignoramos a offer dele
+			fmt.Printf("Ignoring simultaneous offer from %s (our ID is greater)\n", peerID)
+			return
+		}
+		// Nosso ID é menor, então descartamos nossa conexão e aceitamos a offer dele
+		fmt.Printf("Accepting simultaneous offer from %s (our ID is smaller)\n", peerID)
+		w.removePeer(peerID) // Remover a conexão que iniciamos
+	}
+
 	peerConnection, err := webrtc.NewPeerConnection(w.config)
 	if err != nil {
 		fmt.Printf("Failed to create peer connection: %v\n", err)

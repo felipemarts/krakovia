@@ -54,6 +54,11 @@ func TestPeerLimitEnforcement(t *testing.T) {
 			t.Logf("Signaling server error: %v", err)
 		}
 	}()
+	defer func() {
+		if err := server.Stop(); err != nil {
+			t.Logf("Warning: error stopping signaling server: %v", err)
+		}
+	}()
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -124,6 +129,11 @@ func TestPeerDiscovery(t *testing.T) {
 	go func() {
 		if err := server.Start(fmt.Sprintf(":%d", signalingPort)); err != nil {
 			t.Logf("Signaling server error: %v", err)
+		}
+	}()
+	defer func() {
+		if err := server.Stop(); err != nil {
+			t.Logf("Warning: error stopping signaling server: %v", err)
 		}
 	}()
 
@@ -228,6 +238,11 @@ func TestMinimumPeersMaintenance(t *testing.T) {
 	go func() {
 		if err := server.Start(fmt.Sprintf(":%d", signalingPort)); err != nil {
 			t.Logf("Signaling server error: %v", err)
+		}
+	}()
+	defer func() {
+		if err := server.Stop(); err != nil {
+			t.Logf("Warning: error stopping signaling server: %v", err)
 		}
 	}()
 
