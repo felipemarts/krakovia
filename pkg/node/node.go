@@ -323,6 +323,10 @@ func (n *Node) HandlePeerMessage(peerID string, msgType string, data []byte) {
 		n.handleSyncRequest(peerID, data)
 	case "sync_response":
 		n.handleSyncResponse(peerID, data)
+	case "checkpoint_request":
+		n.handleCheckpointRequest(peerID, data)
+	case "checkpoint_response":
+		n.handleCheckpointResponse(peerID, data)
 	default:
 		fmt.Printf("[%s] Unknown message type '%s' from peer %s\n", n.ID, msgType, peerID)
 	}
@@ -415,6 +419,20 @@ type SyncResponse struct {
 	Blocks []*blockchain.Block `json:"blocks"`
 }
 
+// CheckpointRequest mensagem de requisição de checkpoint
+type CheckpointRequest struct {
+	RequestedHeight uint64 `json:"requested_height"` // 0 = último checkpoint
+}
+
+// CheckpointResponse mensagem de resposta de checkpoint
+type CheckpointResponse struct {
+	Checkpoint       *blockchain.Checkpoint   `json:"checkpoint"`
+	BlocksSince      []*blockchain.Block      `json:"blocks_since"` // blocos após checkpoint
+	HasCheckpoint    bool                     `json:"has_checkpoint"`
+	AvailableHeights []uint64                 `json:"available_heights,omitempty"` // alturas disponíveis
+	AllCheckpoints   []*blockchain.Checkpoint `json:"all_checkpoints,omitempty"`   // todos os checkpoints necessários
+}
+
 // handleSyncRequest processa uma requisição de sincronização
 func (n *Node) handleSyncRequest(peerID string, data []byte) {
 	var req SyncRequest
@@ -440,6 +458,30 @@ func (n *Node) handleSyncRequest(peerID string, data []byte) {
 	}
 
 	blocks := n.chain.GetBlockRange(req.FromHeight, toHeight)
+
+	// Se não conseguiu todos os blocos (devido ao bug de pruning), carregar do DB
+	expectedCount := int(toHeight - req.FromHeight + 1)
+	if len(blocks) < expectedCount {
+		fmt.Printf("[%s] GetBlockRange returned %d/%d blocks, loading from DB for heights %d-%d\n",
+			n.ID, len(blocks), expectedCount, req.FromHeight, toHeight)
+
+		blocks = make([]*blockchain.Block, 0, expectedCount)
+		for h := req.FromHeight; h <= toHeight; h++ {
+			block, exists := n.chain.GetBlockByHeight(h)
+			if exists && block != nil && block.Header.Height == h {
+				blocks = append(blocks, block)
+			} else {
+				// Carregar do DB
+				block, err := blockchain.LoadBlockFromDB(n.db, h)
+				if err != nil {
+					fmt.Printf("[%s] Failed to load block %d from DB: %v\n", n.ID, h, err)
+					break
+				}
+				blocks = append(blocks, block)
+			}
+		}
+		fmt.Printf("[%s] After DB loading: have %d blocks for sync\n", n.ID, len(blocks))
+	}
 
 	// Envia resposta
 	response := SyncResponse{
@@ -504,6 +546,310 @@ func (n *Node) handleSyncResponse(peerID string, data []byte) {
 	if added > 0 {
 		fmt.Printf("[%s] Successfully synced %d blocks, current height: %d\n", n.ID, added, n.chain.GetHeight())
 	}
+}
+
+// handleCheckpointRequest processa uma requisição de checkpoint
+func (n *Node) handleCheckpointRequest(peerID string, data []byte) {
+	// Se checkpoint não está habilitado, ignora
+	if n.checkpointConfig == nil || !n.checkpointConfig.Enabled {
+		fmt.Printf("[%s] Checkpoint not enabled, ignoring request from %s\n", n.ID, peerID)
+		return
+	}
+
+	var req CheckpointRequest
+	if err := json.Unmarshal(data, &req); err != nil {
+		fmt.Printf("[%s] Failed to parse checkpoint request from %s: %v\n", n.ID, peerID, err)
+		return
+	}
+
+	fmt.Printf("[%s] Received checkpoint request from %s (height: %d)\n", n.ID, peerID, req.RequestedHeight)
+
+	response := CheckpointResponse{
+		HasCheckpoint: false,
+	}
+
+	// Se solicitou altura específica ou 0 (último), tenta carregar
+	var checkpointHeight uint64
+	if req.RequestedHeight == 0 {
+		// Pegar último checkpoint
+		var err error
+		checkpointHeight, err = blockchain.GetLastCheckpointHeight(n.db)
+		if err != nil || checkpointHeight == 0 {
+			fmt.Printf("[%s] No checkpoint available: %v\n", n.ID, err)
+			n.sendCheckpointResponse(peerID, response)
+			return
+		}
+	} else {
+		checkpointHeight = req.RequestedHeight
+	}
+
+	// Carregar checkpoint do DB
+	checkpoint, err := blockchain.LoadCheckpointFromDB(n.db, checkpointHeight)
+	if err != nil {
+		fmt.Printf("[%s] Failed to load checkpoint at height %d: %v\n", n.ID, checkpointHeight, err)
+		n.sendCheckpointResponse(peerID, response)
+		return
+	}
+
+	// Pegar blocos desde o genesis até a altura atual (limitado)
+	// NOTA: O peer precisa de TODOS os blocos desde o genesis para reconstruir a chain!
+	currentHeight := n.chain.GetHeight()
+	maxBlocks := uint64(100) // Limitar quantidade de blocos (aumentado para cobrir mais blocos)
+
+	// Enviar blocos desde o GENESIS (altura 1), não após o checkpoint!
+	// O checkpoint contém o estado, mas o peer ainda precisa dos blocos para validação
+	fromHeight := uint64(1) // Começar do primeiro bloco após genesis
+	toHeight := currentHeight
+	if toHeight-fromHeight+1 > maxBlocks {
+		toHeight = fromHeight + maxBlocks - 1
+	}
+
+	// Tentar pegar blocos da chain (memória)
+	blocks := n.chain.GetBlockRange(fromHeight, toHeight)
+
+	// Se não conseguiu blocos da memória (foram pruned), buscar do DB
+	if len(blocks) < int(toHeight-fromHeight+1) {
+		fmt.Printf("[%s] Blocks partially in memory (%d/%d), loading remaining from DB: height %d-%d\n",
+			n.ID, len(blocks), toHeight-fromHeight+1, fromHeight, toHeight)
+
+		blocks = make([]*blockchain.Block, 0, toHeight-fromHeight+1)
+		for h := fromHeight; h <= toHeight; h++ {
+			// Primeiro tenta da chain (memória)
+			// NOTA: GetBlockByHeight tem um bug após pruning onde o índice não corresponde à altura
+			// Então precisamos verificar a altura real do bloco retornado
+			block, exists := n.chain.GetBlockByHeight(h)
+			if exists && block != nil && block.Header.Height == h {
+				blocks = append(blocks, block)
+				fmt.Printf("[%s] Got block %d from memory\n", n.ID, h)
+			} else {
+				// Se não está em memória (ou índice errado), busca do DB
+				var err error
+				block, err = blockchain.LoadBlockFromDB(n.db, h)
+				if err != nil {
+					fmt.Printf("[%s] Failed to load block %d from DB: %v\n", n.ID, h, err)
+					break
+				}
+				fmt.Printf("[%s] Loaded block %d from DB\n", n.ID, h)
+				blocks = append(blocks, block)
+			}
+		}
+		fmt.Printf("[%s] After DB loading: have %d blocks\n", n.ID, len(blocks))
+	}
+
+	// Carregar TODOS os checkpoints disponíveis para o peer poder validar os blocos
+	// Os blocos contêm hashes de checkpoints anteriores, então precisamos enviá-los todos
+	allCheckpoints := make([]*blockchain.Checkpoint, 0)
+
+	// Tentar carregar checkpoint 0 (genesis checkpoint) se existir
+	if checkpoint0, err := blockchain.LoadCheckpointFromDB(n.db, 0); err == nil {
+		allCheckpoints = append(allCheckpoints, checkpoint0)
+	}
+
+	// Adicionar o checkpoint principal se não for o checkpoint 0
+	if checkpointHeight != 0 {
+		allCheckpoints = append(allCheckpoints, checkpoint)
+	}
+
+	response.HasCheckpoint = true
+	response.Checkpoint = checkpoint
+	response.BlocksSince = blocks
+	response.AllCheckpoints = allCheckpoints
+
+	fmt.Printf("[%s] Sending checkpoint at height %d with %d blocks and %d checkpoints to %s\n",
+		n.ID, checkpointHeight, len(blocks), len(allCheckpoints), peerID)
+
+	n.sendCheckpointResponse(peerID, response)
+}
+
+// handleCheckpointResponse processa uma resposta de checkpoint
+func (n *Node) handleCheckpointResponse(peerID string, data []byte) {
+	var resp CheckpointResponse
+	if err := json.Unmarshal(data, &resp); err != nil {
+		fmt.Printf("[%s] Failed to parse checkpoint response from %s: %v\n", n.ID, peerID, err)
+		return
+	}
+
+	if !resp.HasCheckpoint {
+		fmt.Printf("[%s] Peer %s has no checkpoint available\n", n.ID, peerID)
+		return
+	}
+
+	fmt.Printf("[%s] Received checkpoint from %s at height %d with %d blocks and %d checkpoints\n",
+		n.ID, peerID, resp.Checkpoint.Height, len(resp.BlocksSince), len(resp.AllCheckpoints))
+
+	// Validar checkpoint
+	if err := blockchain.ValidateCheckpointHash(resp.Checkpoint, n.checkpointConfig.CSVDelimiter); err != nil {
+		fmt.Printf("[%s] Invalid checkpoint received from %s: %v\n", n.ID, peerID, err)
+		return
+	}
+
+	// Salvar todos os checkpoints adicionais no DB para validação de blocos
+	if len(resp.AllCheckpoints) > 0 {
+		fmt.Printf("[%s] Saving %d additional checkpoints for validation\n", n.ID, len(resp.AllCheckpoints))
+		for _, cp := range resp.AllCheckpoints {
+			if err := blockchain.SaveCheckpointToDB(n.db, cp, n.checkpointConfig.Compression); err != nil {
+				fmt.Printf("[%s] Warning: failed to save checkpoint at height %d: %v\n", n.ID, cp.Height, err)
+			}
+		}
+	}
+
+	// Verificar se precisamos deste checkpoint (se nossa chain está atrás)
+	currentHeight := n.chain.GetHeight()
+	if currentHeight >= resp.Checkpoint.Height {
+		fmt.Printf("[%s] Checkpoint is behind current chain height (%d >= %d), skipping\n",
+			n.ID, currentHeight, resp.Checkpoint.Height)
+
+		// Mas ainda processa os blocos adicionais se houver
+		if len(resp.BlocksSince) > 0 {
+			n.processSyncedBlocks(resp.BlocksSince)
+		}
+		return
+	}
+
+	// Restaurar estado a partir do checkpoint
+	fmt.Printf("[%s] Restoring state from checkpoint at height %d\n", n.ID, resp.Checkpoint.Height)
+
+	if err := n.restoreFromCheckpoint(resp.Checkpoint); err != nil {
+		fmt.Printf("[%s] Failed to restore from checkpoint: %v\n", n.ID, err)
+		return
+	}
+
+	// Salvar checkpoint no DB
+	if err := blockchain.SaveCheckpointToDB(n.db, resp.Checkpoint, n.checkpointConfig.Compression); err != nil {
+		fmt.Printf("[%s] Failed to save checkpoint to DB: %v\n", n.ID, err)
+	}
+
+	// Atualizar checkpoint interno
+	n.checkpointMutex.Lock()
+	n.lastCheckpointHeight = resp.Checkpoint.Height
+	n.lastCheckpointHash = resp.Checkpoint.Hash
+	n.checkpointMutex.Unlock()
+
+	// Processar blocos adicionais recebidos
+	if len(resp.BlocksSince) > 0 {
+		fmt.Printf("[%s] Processing %d blocks after checkpoint\n", n.ID, len(resp.BlocksSince))
+		n.processSyncedBlocks(resp.BlocksSince)
+	}
+
+	fmt.Printf("[%s] Successfully synchronized via checkpoint! New height: %d\n", n.ID, n.chain.GetHeight())
+}
+
+// sendCheckpointResponse envia resposta de checkpoint para um peer
+func (n *Node) sendCheckpointResponse(peerID string, response CheckpointResponse) {
+	responseData, err := json.Marshal(response)
+	if err != nil {
+		fmt.Printf("[%s] Failed to marshal checkpoint response: %v\n", n.ID, err)
+		return
+	}
+
+	n.peersMutex.RLock()
+	peer := n.peers[peerID]
+	n.peersMutex.RUnlock()
+
+	if peer != nil {
+		if err := peer.SendMessage("checkpoint_response", responseData); err != nil {
+			fmt.Printf("[%s] Failed to send checkpoint response to %s: %v\n", n.ID, peerID, err)
+		}
+	}
+}
+
+// restoreFromCheckpoint restaura o estado da blockchain a partir de um checkpoint
+func (n *Node) restoreFromCheckpoint(checkpoint *blockchain.Checkpoint) error {
+	// Por enquanto, vamos apenas registrar que recebemos o checkpoint
+	// O estado será restaurado através dos blocos recebidos via BlocksSince
+	// que já contêm todas as transações necessárias
+
+	fmt.Printf("[%s] Checkpoint received: %d accounts at height %d\n",
+		n.ID, len(checkpoint.Accounts), checkpoint.Height)
+
+	// NOTA: Uma implementação completa de "fast sync" requereria:
+	// 1. Criar um novo contexto com o estado do checkpoint injetado
+	// 2. Recriar a chain a partir do bloco do checkpoint
+	// 3. Atualizar todos os blocos em memória
+	//
+	// Por enquanto, o protocolo funciona assim:
+	// - Node2 recebe checkpoint em altura H
+	// - Node2 recebe blocos desde H+1 até altura atual
+	// - Os blocos são processados normalmente, reconstruindo o estado
+	//
+	// Isso é mais seguro e garante consistência, mas requer mais banda.
+	// Uma otimização futura seria injetar o estado diretamente.
+
+	return nil
+}
+
+// processSyncedBlocks processa blocos recebidos durante sincronização
+func (n *Node) processSyncedBlocks(blocks []*blockchain.Block) {
+	added := 0
+	for i, block := range blocks {
+		fmt.Printf("[%s] Processing synced block %d/%d: height=%d, hash=%s\n",
+			n.ID, i+1, len(blocks), block.Header.Height, block.Hash[:8])
+
+		// Verifica se já tem o bloco
+		if _, exists := n.chain.GetBlock(block.Hash); exists {
+			fmt.Printf("[%s] Block %d already exists, skipping\n", n.ID, block.Header.Height)
+			continue
+		}
+
+		// Validar checkpoint hash se presente
+		if block.Header.CheckpointHash != "" {
+			if err := n.validateBlockCheckpointHash(block); err != nil {
+				fmt.Printf("[%s] Block %d checkpoint validation failed: %v\n", n.ID, block.Header.Height, err)
+				continue
+			}
+		}
+
+		// Adiciona à chain
+		if err := n.chain.AddBlock(block); err != nil {
+			fmt.Printf("[%s] Failed to add synced block %d: %v\n", n.ID, block.Header.Height, err)
+			break
+		}
+		fmt.Printf("[%s] Successfully added synced block %d\n", n.ID, block.Header.Height)
+
+		// Tentar criar checkpoint se necessário
+		n.tryCreateCheckpoint(block.Header.Height)
+
+		// Remove transações do mempool
+		txIDs := make([]string, 0, len(block.Transactions))
+		for _, tx := range block.Transactions {
+			if !tx.IsCoinbase() {
+				txIDs = append(txIDs, tx.ID)
+			}
+		}
+		n.mempool.RemoveTransactions(txIDs)
+		added++
+	}
+
+	if added > 0 {
+		fmt.Printf("[%s] Successfully processed %d synced blocks\n", n.ID, added)
+	}
+}
+
+// RequestCheckpointFromPeer solicita checkpoint de um peer específico
+func (n *Node) RequestCheckpointFromPeer(peerID string, height uint64) error {
+	if n.checkpointConfig == nil || !n.checkpointConfig.Enabled {
+		return fmt.Errorf("checkpoint not enabled")
+	}
+
+	req := CheckpointRequest{
+		RequestedHeight: height,
+	}
+
+	data, err := json.Marshal(req)
+	if err != nil {
+		return fmt.Errorf("failed to marshal checkpoint request: %w", err)
+	}
+
+	n.peersMutex.RLock()
+	peer := n.peers[peerID]
+	n.peersMutex.RUnlock()
+
+	if peer == nil {
+		return fmt.Errorf("peer %s not found", peerID)
+	}
+
+	fmt.Printf("[%s] Requesting checkpoint (height: %d) from %s\n", n.ID, height, peerID)
+	return peer.SendMessage("checkpoint_request", data)
 }
 
 // broadcastBlock envia um bloco para todos os peers
@@ -705,12 +1051,48 @@ func (n *Node) PrintStats() {
 
 // requestSync solicita sincronização de blockchain com um peer
 func (n *Node) requestSync(peerID string) {
-	// Espera um pouco para garantir que a conexão está estabelecida
-	time.Sleep(500 * time.Millisecond)
+	// Aguarda data channel estar pronto (com timeout de 5 segundos)
+	n.peersMutex.RLock()
+	peer := n.peers[peerID]
+	n.peersMutex.RUnlock()
+
+	if peer == nil {
+		fmt.Printf("[%s] Peer %s not found for sync\n", n.ID, peerID)
+		return
+	}
+
+	// Polling para aguardar data channel estar pronto (timeout reduzido)
+	ready := false
+	for i := 0; i < 10; i++ { // 10 * 100ms = 1 segundo max
+		if peer.IsReady() {
+			ready = true
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	if !ready {
+		fmt.Printf("[%s] Data channel with %s not ready after 1s, aborting sync\n", n.ID, peerID)
+		return
+	}
+
+	fmt.Printf("[%s] Data channel with %s is ready, starting sync\n", n.ID, peerID)
 
 	currentHeight := n.chain.GetHeight()
 
-	// Solicita blocos a partir da próxima altura
+	// Se checkpoint está habilitado, solicita checkpoint do peer
+	// A sincronização via checkpoint é assíncrona - a resposta virá pelo handler
+	if n.checkpointConfig != nil && n.checkpointConfig.Enabled {
+		// Solicita checkpoint do peer (0 = último checkpoint)
+		if err := n.RequestCheckpointFromPeer(peerID, 0); err != nil {
+			fmt.Printf("[%s] Failed to request checkpoint from %s: %v, falling back to regular sync\n",
+				n.ID, peerID, err)
+		} else {
+			fmt.Printf("[%s] Requested checkpoint from %s (async)\n", n.ID, peerID)
+		}
+	}
+
+	// Solicita blocos a partir da próxima altura (sync regular ou complementar ao checkpoint)
 	req := SyncRequest{
 		FromHeight: currentHeight + 1,
 	}
@@ -721,16 +1103,11 @@ func (n *Node) requestSync(peerID string) {
 		return
 	}
 
-	n.peersMutex.RLock()
-	peer := n.peers[peerID]
-	n.peersMutex.RUnlock()
-
-	if peer != nil {
-		if err := peer.SendMessage("sync_request", data); err != nil {
-			fmt.Printf("[%s] Failed to send sync request to %s: %v\n", n.ID, peerID, err)
-		} else {
-			fmt.Printf("[%s] Requested sync from %s (from height %d)\n", n.ID, peerID, req.FromHeight)
-		}
+	// peer já foi obtido anteriormente, pode reutilizar
+	if err := peer.SendMessage("sync_request", data); err != nil {
+		fmt.Printf("[%s] Failed to send sync request to %s: %v\n", n.ID, peerID, err)
+	} else {
+		fmt.Printf("[%s] Requested sync from %s (from height %d)\n", n.ID, peerID, req.FromHeight)
 	}
 }
 
@@ -781,6 +1158,18 @@ func (n *Node) tryCreateCheckpoint(currentHeight uint64) {
 	// Altura do bloco para o qual vamos criar o checkpoint
 	// Checkpoint é do estado no bloco (currentHeight - interval)
 	checkpointHeight := currentHeight - interval
+
+	// Verificar se já existe um checkpoint nesta altura (pode ter sido recebido via sync)
+	if existingCP, err := blockchain.LoadCheckpointFromDB(n.db, checkpointHeight); err == nil && existingCP != nil {
+		fmt.Printf("[%s] Checkpoint at height %d already exists (hash: %s), skipping creation\n",
+			n.ID, checkpointHeight, existingCP.Hash[:16])
+		// Atualizar referências internas
+		n.checkpointMutex.Lock()
+		n.lastCheckpointHeight = checkpointHeight
+		n.lastCheckpointHash = existingCP.Hash
+		n.checkpointMutex.Unlock()
+		return
+	}
 
 	fmt.Printf("[%s] Creating checkpoint for block %d (current height: %d)\n", n.ID, checkpointHeight, currentHeight)
 

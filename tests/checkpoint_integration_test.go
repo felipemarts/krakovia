@@ -347,11 +347,7 @@ func TestCheckpointPruning(t *testing.T) {
 }
 
 // TestCheckpointSync testa sincronização usando checkpoint
-// NOTA: Este teste requer implementação completa do protocolo de sincronização via checkpoint
-// e melhorias na estabilidade de conexão WebRTC entre peers
 func TestCheckpointSync(t *testing.T) {
-	t.Skip("Skipping checkpoint sync test - requires WebRTC connection stability improvements and checkpoint sync protocol implementation")
-
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
@@ -391,15 +387,15 @@ func TestCheckpointSync(t *testing.T) {
 	// Configurar checkpoint
 	checkpointConfig := &config.CheckpointConfig{
 		Enabled:      true,
-		Interval:     10,
-		KeepInMemory: 15,
+		Interval:     3,
+		KeepInMemory: 3,
 		KeepOnDisk:   2,
 		CSVDelimiter: ",",
 		Compression:  false,
 	}
 
 	chainConfig := blockchain.DefaultChainConfig()
-	chainConfig.BlockTime = 100 * time.Millisecond
+	chainConfig.BlockTime = 300 * time.Millisecond
 
 	// Node 1
 	config1 := node.Config{
@@ -430,19 +426,23 @@ func TestCheckpointSync(t *testing.T) {
 	fmt.Printf("[Node1] Starting mining...\n")
 	node1.StartMining()
 
-	// Aguardar 20 blocos
-	for i := 0; i < 40; i++ {
-		if node1.GetChainHeight() >= 20 {
-			break
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
+	// Aguardar 10 blocos
+	time.Sleep(3 * time.Second)
+	node1.StopMining()
 
 	height1 := node1.GetChainHeight()
 	fmt.Printf("[Node1] Chain height: %d\n", height1)
 
-	if height1 < 20 {
-		t.Fatalf("Node1 should have at least 20 blocks, got %d", height1)
+	if height1 < 10 {
+		t.Fatalf("Node1 should have at least 10 blocks, got %d", height1)
+	}
+
+	// Verifica se houve pruning
+	blocksInMemory1 := node1.GetBlocksInMemory()
+	fmt.Printf("[Node1] Blocks in memory after mining: %d\n", blocksInMemory1)
+
+	if blocksInMemory1 > 6 {
+		t.Errorf("Node1 should have pruned blocks, expected <=6 in memory, got %d", blocksInMemory1)
 	}
 
 	// Criar Node 2 (vai sincronizar via checkpoint)
@@ -471,22 +471,28 @@ func TestCheckpointSync(t *testing.T) {
 	}
 	defer node2.Stop()
 
-	// Aguardar sincronização
+	// Aguardar sincronização com polling
 	fmt.Printf("[Sync] Waiting for synchronization...\n")
-	time.Sleep(2 * time.Second)
+	time.Sleep(3 * time.Second)
 
 	height2 := node2.GetChainHeight()
 	fmt.Printf("[Node2] Chain height after sync: %d\n", height2)
-
-	// Verificar se sincronizou
-	if height2 < height1-2 { // Permitir diferença de 2 blocos
-		t.Errorf("Node2 should have synced to ~%d, got %d", height1, height2)
-	}
 
 	fmt.Printf("\n✓ Checkpoint sync test completed!\n")
 	fmt.Printf("✓ Node1 height: %d\n", height1)
 	fmt.Printf("✓ Node2 height: %d\n", height2)
 	fmt.Printf("✓ Synchronization successful\n")
+
+	fmt.Printf("\n=== Checking consensus ===\n")
+	node1LastBlock := node1.GetLastBlock()
+	node2LastBlock := node2.GetLastBlock()
+
+	if node1LastBlock.Hash != node2LastBlock.Hash {
+		t.Errorf("Nodes are not in consensus! Node1 last block: %s, Node2 last block: %s",
+			node1LastBlock.Hash[:16], node2LastBlock.Hash[:16])
+	} else {
+		fmt.Printf("Nodes are in consensus! Last block hash: %s\n", node1LastBlock.Hash[:16])
+	}
 }
 
 // TestCheckpointHashValidation testa a validação de checkpoint hash em blocos recebidos

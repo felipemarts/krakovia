@@ -105,6 +105,14 @@ func (c *Chain) AddBlock(block *Block) error {
 			lastBlock.Header.Height+1, block.Header.Height)
 	}
 
+	// Valida tempo mínimo entre blocos (80% do BlockTime configurado)
+	minBlockTime := int64(c.config.BlockTime.Seconds() * 0.8)
+	if block.Header.Timestamp < lastBlock.Header.Timestamp+minBlockTime {
+		return fmt.Errorf("block mined too fast: timestamp %d < minimum %d (last: %d + %d)",
+			block.Header.Timestamp, lastBlock.Header.Timestamp+minBlockTime,
+			lastBlock.Header.Timestamp, minBlockTime)
+	}
+
 	// Adiciona ao contexto (executa transações)
 	if err := c.context.AddBlock(block); err != nil {
 		return fmt.Errorf("failed to add block to context: %w", err)
@@ -131,11 +139,15 @@ func (c *Chain) GetBlockByHeight(height uint64) (*Block, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	if height >= uint64(len(c.blocks)) {
-		return nil, false
+	// Após pruning, não podemos usar height como índice
+	// Precisamos iterar para encontrar o bloco com a altura correta
+	for _, block := range c.blocks {
+		if block.Header.Height == height {
+			return block, true
+		}
 	}
 
-	return c.blocks[height], true
+	return nil, false
 }
 
 // GetLastBlock retorna o último bloco da chain
@@ -227,6 +239,13 @@ func (c *Chain) GetAllBlocksPointer() *BlockSlice {
 // GetContext retorna o contexto da chain
 func (c *Chain) GetContext() *Context {
 	return c.context
+}
+
+// SetContext define um novo contexto para a chain (usado em checkpoint restore)
+func (c *Chain) SetContext(ctx *Context) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.context = ctx
 }
 
 // GetBlockRange retorna blocos em um intervalo de altura

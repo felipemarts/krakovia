@@ -14,6 +14,7 @@ type Peer struct {
 	Connection      *webrtc.PeerConnection
 	DataChannel     *webrtc.DataChannel
 	dataChannelMux  sync.RWMutex
+	dataChannelReady bool
 	OnMessage       func(msgType string, data []byte)
 	OnDisconnect    func(peerID string)
 }
@@ -41,6 +42,9 @@ func (p *Peer) SetDataChannel(dc *webrtc.DataChannel) {
 	// Handler quando o canal abre
 	dc.OnOpen(func() {
 		fmt.Printf("Data channel '%s' open with peer %s\n", dc.Label(), p.ID)
+		p.dataChannelMux.Lock()
+		p.dataChannelReady = true
+		p.dataChannelMux.Unlock()
 	})
 
 	// Handler para mensagens recebidas
@@ -59,19 +63,30 @@ func (p *Peer) SetDataChannel(dc *webrtc.DataChannel) {
 	// Handler quando o canal fecha
 	dc.OnClose(func() {
 		fmt.Printf("Data channel closed with peer %s\n", p.ID)
+		p.dataChannelMux.Lock()
+		p.dataChannelReady = false
+		p.dataChannelMux.Unlock()
 		if p.OnDisconnect != nil {
 			p.OnDisconnect(p.ID)
 		}
 	})
 }
 
+// IsReady retorna se o data channel está pronto para enviar mensagens
+func (p *Peer) IsReady() bool {
+	p.dataChannelMux.RLock()
+	defer p.dataChannelMux.RUnlock()
+	return p.dataChannelReady && p.DataChannel != nil
+}
+
 // SendMessage envia uma mensagem para o peer
 func (p *Peer) SendMessage(msgType string, data []byte) error {
 	p.dataChannelMux.RLock()
 	dc := p.DataChannel
+	ready := p.dataChannelReady
 	p.dataChannelMux.RUnlock()
 
-	if dc == nil {
+	if dc == nil || !ready {
 		return fmt.Errorf("data channel not established")
 	}
 
