@@ -4,7 +4,7 @@
 
 **Blockchain Proof of Stake completa implementada em Go com rede P2P descentralizada via WebRTC**
 
-[![CI](https://github.com/krakovia/blockchain/workflows/CI/badge.svg)](https://github.com/krakovia/blockchain/actions)
+[![CI](https://github.com/felipemarts/krakovia/workflows/CI/badge.svg)](https://github.com/felipemarts/krakovia/actions)
 [![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go)](https://golang.org)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
