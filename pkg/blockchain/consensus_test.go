@@ -317,7 +317,7 @@ func TestSingleValidatorMining(t *testing.T) {
 	defer node.StopMining()
 
 	// Aguarda alguns blocos
-	time.Sleep(1 * time.Second)
+	time.Sleep(500 * time.Millisecond)
 
 	if chain.GetHeight() < 3 {
 		t.Errorf("Expected at least 3 blocks mined, got %d", chain.GetHeight())
@@ -714,12 +714,12 @@ func TestProportionalBlockDistribution(t *testing.T) {
 		})
 	}
 
-	// Minera por 5 segundos
+	// Minera por 3 segundos
 	for _, node := range validators {
 		node.StartMining()
 	}
 
-	time.Sleep(5 * time.Second)
+	time.Sleep(3 * time.Second)
 
 	for _, node := range validators {
 		node.StopMining()

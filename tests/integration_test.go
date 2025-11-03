@@ -117,9 +117,9 @@ func TestNodeIntegration(t *testing.T) {
 		t.Fatalf("Failed to start mining: %v", err)
 	}
 
-	// 6. Aguardar alguns blocos serem minerados (pode demorar com PoS)
+	// 6. Aguardar alguns blocos serem minerados (otimizado para testes rápidos)
 	fmt.Printf("[Node 1] Waiting for blocks to be mined...\n")
-	time.Sleep(5 * time.Second)
+	time.Sleep(1 * time.Second)
 
 	height1 := node1.GetChainHeight()
 	fmt.Printf("[Node 1] Chain height after mining: %d\n\n", height1)
@@ -137,9 +137,9 @@ func TestNodeIntegration(t *testing.T) {
 	fmt.Printf("[Node 1] Transaction created: %s\n", tx.ID[:8])
 	fmt.Printf("[Node 1] Mempool size: %d\n\n", node1.GetMempoolSize())
 
-	// 8. Aguardar transação ser incluída em um bloco
+	// 8. Aguardar transação ser incluída em um bloco (otimizado)
 	fmt.Printf("Waiting for transaction to be mined...\n")
-	time.Sleep(2 * time.Second)
+	time.Sleep(400 * time.Millisecond)
 
 	// 9. Criar e iniciar Node 2 (vai sincronizar com Node 1)
 	fmt.Printf("\n[Node 2] Creating and starting...\n")
@@ -157,9 +157,9 @@ func TestNodeIntegration(t *testing.T) {
 	fmt.Printf("[Node 2] Started successfully\n")
 	fmt.Printf("[Node 2] Initial chain height: %d\n", node2.GetChainHeight())
 
-	// 10. Aguardar sincronização entre nodes (conexão WebRTC pode demorar)
+	// 10. Aguardar sincronização entre nodes (otimizado para testes rápidos)
 	fmt.Printf("\nWaiting for node synchronization...\n")
-	time.Sleep(8 * time.Second)
+	time.Sleep(1 * time.Second)
 
 	// 11. Verificar se Node 2 sincronizou com Node 1
 	height2 := node2.GetChainHeight()
@@ -187,7 +187,7 @@ func TestNodeIntegration(t *testing.T) {
 
 	// 14. Aguardar propagação para Node 1
 	fmt.Printf("Waiting for transaction propagation...\n")
-	time.Sleep(1 * time.Second)
+	time.Sleep(400 * time.Millisecond)
 
 	// 15. Verificar se Node 1 recebeu a transação no mempool
 	mempoolSize1 := node1.GetMempoolSize()
@@ -197,9 +197,9 @@ func TestNodeIntegration(t *testing.T) {
 		t.Error("Node 1 should have received transaction from Node 2")
 	}
 
-	// 16. Aguardar mais blocos serem minerados
+	// 16. Aguardar mais blocos serem minerados (otimizado)
 	fmt.Printf("\nWaiting for more blocks...\n")
-	time.Sleep(3 * time.Second)
+	time.Sleep(1 * time.Second)
 
 	// 17. Verificar convergência final
 	finalHeight1 := node1.GetChainHeight()
@@ -279,7 +279,7 @@ func TestThreeNodeConsensus(t *testing.T) {
 		defer n.Stop()
 		nodes[i] = n
 		fmt.Printf("[Node %d] Started\n", i+1)
-		time.Sleep(500 * time.Millisecond) // Delay entre starts
+		time.Sleep(200 * time.Millisecond) // Delay entre starts (otimizado)
 	}
 
 	// Node 1 faz stake e inicia mineração
@@ -287,8 +287,8 @@ func TestThreeNodeConsensus(t *testing.T) {
 	nodes[0].CreateStakeTransaction(100000, 10)
 	nodes[0].StartMining()
 
-	// Aguardar blocos e conexões WebRTC
-	time.Sleep(8 * time.Second)
+	// Aguardar blocos e conexões WebRTC (otimizado para 30s timeout)
+	time.Sleep(1 * time.Second)
 
 	// Verificar que todos nodes têm a mesma altura
 	fmt.Printf("\n=== Checking consensus ===\n")

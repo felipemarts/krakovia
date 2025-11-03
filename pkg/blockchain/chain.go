@@ -17,7 +17,7 @@ type ChainConfig struct {
 // DefaultChainConfig retorna configurações padrão para testes
 func DefaultChainConfig() ChainConfig {
 	return ChainConfig{
-		BlockTime:         250 * time.Millisecond, // 250ms entre blocos
+		BlockTime:         200 * time.Millisecond, // 200ms entre blocos (otimizado para testes rápidos)
 		MaxBlockSize:      1000,
 		BlockReward:       50,
 		MinValidatorStake: 100,

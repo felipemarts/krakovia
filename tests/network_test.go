@@ -57,8 +57,8 @@ func TestNodeConnection(t *testing.T) {
 		t.Fatalf("Failed to start node2: %v", err)
 	}
 
-	// Aguardar conexão WebRTC
-	time.Sleep(2 * time.Second)
+	// Aguardar conexão WebRTC (otimizado)
+	time.Sleep(1500 * time.Millisecond)
 
 	// Verificar se os nós se conectaram
 	peers1 := n1.GetPeers()
@@ -125,8 +125,8 @@ func TestMultipleNodesConnection(t *testing.T) {
 		time.Sleep(150 * time.Millisecond)
 	}
 
-	// Aguardar conexões e data channels
-	time.Sleep(5 * time.Second)
+	// Aguardar conexões e data channels (otimizado)
+	time.Sleep(3 * time.Second)
 
 	// Verificar se todos os nós têm pelo menos 1 peer conectado
 	minExpectedPeers := 1
@@ -186,8 +186,8 @@ func TestMessageBroadcast(t *testing.T) {
 		time.Sleep(150 * time.Millisecond)
 	}
 
-	// Aguardar conexões e data channels
-	time.Sleep(3 * time.Second)
+	// Aguardar conexões e data channels (otimizado)
+	time.Sleep(2 * time.Second)
 
 	// Verificar conexões - pelo menos 1 peer para cada nó
 	for i, n := range nodes {

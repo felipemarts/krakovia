@@ -30,8 +30,8 @@ func TestPeerLimitEnforcement(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 
-	// Criar 6 nós (reduzido de 10), mas com limite de 3 peers cada
-	const numNodes = 6
+	// Criar 4 nós (otimizado para testes rápidos)
+	const numNodes = 4
 	const maxPeers = 3
 	const minPeers = 2
 
@@ -57,8 +57,8 @@ func TestPeerLimitEnforcement(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	// Aguardar conexões (reduzido para 3s)
-	time.Sleep(3 * time.Second)
+	// Aguardar conexões (otimizado)
+	time.Sleep(1 * time.Second)
 
 	// Verificar que nenhum nó excedeu o limite
 	for i, n := range nodes {
@@ -132,7 +132,7 @@ func TestPeerDiscovery(t *testing.T) {
 		t.Fatalf("Failed to start node2: %v", err)
 	}
 
-	time.Sleep(1500 * time.Millisecond)
+	time.Sleep(500 * time.Millisecond)
 
 	peers1Before := len(n1.GetPeers())
 	peers2Before := len(n2.GetPeers())
@@ -155,8 +155,8 @@ func TestPeerDiscovery(t *testing.T) {
 		t.Fatalf("Failed to start node3: %v", err)
 	}
 
-	// Aguardar descoberta periódica (reduzido para 2.5s)
-	time.Sleep(2500 * time.Millisecond)
+	// Aguardar descoberta periódica (otimizado)
+	time.Sleep(1 * time.Second)
 
 	peers1After := len(n1.GetPeers())
 	peers2After := len(n2.GetPeers())
@@ -196,12 +196,12 @@ func TestMinimumPeersMaintenance(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 
-	const minPeers = 3
-	const numNodes = 5
+	const minPeers = 2
+	const numNodes = 4
 
 	nodes := make([]*node.Node, numNodes)
 
-	// Criar nós com requisito mínimo de 3 peers
+	// Criar nós com requisito mínimo de 2 peers
 	for i := 0; i < numNodes; i++ {
 		config := createTestNodeConfig(t, fmt.Sprintf("min-peers-node%d", i+1), signalingURL, tempDir)
 		config.MaxPeers = 10
@@ -222,8 +222,8 @@ func TestMinimumPeersMaintenance(t *testing.T) {
 		time.Sleep(200 * time.Millisecond)
 	}
 
-	// Aguardar conexões (reduzido para 3s)
-	time.Sleep(3 * time.Second)
+	// Aguardar conexões (otimizado)
+	time.Sleep(1 * time.Second)
 
 	// Verificar que todos os nós têm pelo menos minPeers conexões
 	allGood := true

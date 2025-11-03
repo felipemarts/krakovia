@@ -196,8 +196,8 @@ func TestGossipPropagation(t *testing.T) {
 		time.Sleep(150 * time.Millisecond)
 	}
 
-	// Aguardar conexões e data channels (aumentado para dar tempo)
-	time.Sleep(4 * time.Second)
+	// Aguardar conexões e data channels (otimizado)
+	time.Sleep(500 * time.Millisecond)
 
 	// Verificar se há peers conectados antes de enviar
 	if len(nodes[0].GetPeers()) == 0 {
@@ -218,7 +218,7 @@ func TestGossipPropagation(t *testing.T) {
 	}
 
 	// Aguardar propagação
-	time.Sleep(2 * time.Second)
+	time.Sleep(1 * time.Second)
 
 	// Verificar se mensagens foram recebidas
 	mu.Lock()
