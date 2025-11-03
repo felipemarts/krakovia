@@ -297,6 +297,7 @@ func TestSingleValidatorMining(t *testing.T) {
 	txs := TransactionSlice{coinbase, stakeTx}
 
 	block1 := NewBlock(1, genesis.Hash, txs, addr)
+	block1.Header.Timestamp = genesis.Header.Timestamp + 1
 	hash, _ := block1.CalculateHash()
 	block1.Hash = hash
 
@@ -317,7 +318,7 @@ func TestSingleValidatorMining(t *testing.T) {
 	defer node.StopMining()
 
 	// Aguarda alguns blocos
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(2500 * time.Millisecond)
 
 	if chain.GetHeight() < 3 {
 		t.Errorf("Expected at least 3 blocks mined, got %d", chain.GetHeight())
@@ -818,6 +819,7 @@ func TestChainConsistency(t *testing.T) {
 	}
 
 	block1 := NewBlock(1, genesis.Hash, txs, wallets[0].GetAddress())
+	block1.Header.Timestamp = genesis.Header.Timestamp + 1
 	hash, _ := block1.CalculateHash()
 	block1.Hash = hash
 
@@ -831,7 +833,7 @@ func TestChainConsistency(t *testing.T) {
 	}
 
 	// Aguarda convergência
-	waitForConvergence(t, nodes, 20, 15*time.Second)
+	waitForConvergence(t, nodes, 10, 15*time.Second)
 
 	for _, node := range nodes {
 		node.StopMining()

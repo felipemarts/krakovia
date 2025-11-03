@@ -8,10 +8,14 @@ import (
 
 // GenesisBlock representa a configuração do bloco gênesis
 type GenesisBlock struct {
-	Timestamp     int64  `json:"timestamp"`      // Timestamp do bloco gênesis
-	RecipientAddr string `json:"recipient_addr"` // Endereço que receberá a recompensa inicial
-	Amount        uint64 `json:"amount"`         // Quantidade de tokens iniciais
-	Hash          string `json:"hash"`           // Hash esperado do bloco gênesis
+	Timestamp         int64  `json:"timestamp"`           // Timestamp do bloco gênesis
+	RecipientAddr     string `json:"recipient_addr"`      // Endereço que receberá a recompensa inicial
+	Amount            uint64 `json:"amount"`              // Quantidade de tokens iniciais
+	Hash              string `json:"hash"`                // Hash esperado do bloco gênesis
+	BlockTime         int64  `json:"block_time"`          // Tempo entre blocos em milissegundos
+	MaxBlockSize      int    `json:"max_block_size"`      // Máximo de transações por bloco
+	BlockReward       uint64 `json:"block_reward"`        // Recompensa por bloco minerado
+	MinValidatorStake uint64 `json:"min_validator_stake"` // Stake mínimo para ser validador
 }
 
 // WalletConfig representa as chaves da carteira do nó
@@ -81,6 +85,25 @@ func LoadNodeConfig(filepath string) (*NodeConfig, error) {
 		}
 		if config.Genesis.Hash == "" {
 			return nil, fmt.Errorf("genesis hash is required")
+		}
+
+		// Valores padrão para configurações da chain
+		if config.Genesis.BlockTime == 0 {
+			config.Genesis.BlockTime = 5000 // Padrão: 5 segundos (5000ms)
+		}
+		if config.Genesis.MaxBlockSize == 0 {
+			config.Genesis.MaxBlockSize = 1000
+		}
+		if config.Genesis.BlockReward == 0 {
+			config.Genesis.BlockReward = 50
+		}
+		if config.Genesis.MinValidatorStake == 0 {
+			config.Genesis.MinValidatorStake = 1000
+		}
+
+		// Validações
+		if config.Genesis.BlockTime < 1000 {
+			return nil, fmt.Errorf("block time must be at least 1000ms (1 second)")
 		}
 	}
 

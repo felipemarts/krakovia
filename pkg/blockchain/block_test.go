@@ -469,6 +469,7 @@ func TestBlockSliceValidateChain(t *testing.T) {
 	tx1 := NewTransaction(w.GetAddress(), "addr1", 100, 1, 0, "tx1")
 	_ = tx1.Sign(w)
 	block1 := NewBlock(1, genesis.Hash, TransactionSlice{coinbase1, tx1}, w.GetAddress())
+	block1.Header.Timestamp = genesis.Header.Timestamp + 1
 	hash1, _ := block1.CalculateHash()
 	block1.Hash = hash1
 
@@ -477,6 +478,7 @@ func TestBlockSliceValidateChain(t *testing.T) {
 	tx2 := NewTransaction(w.GetAddress(), "addr2", 200, 2, 1, "tx2")
 	_ = tx2.Sign(w)
 	block2 := NewBlock(2, block1.Hash, TransactionSlice{coinbase2, tx2}, w.GetAddress())
+	block2.Header.Timestamp = block1.Header.Timestamp + 1
 	hash2, _ := block2.CalculateHash()
 	block2.Hash = hash2
 
@@ -509,6 +511,57 @@ func TestBlockSliceValidateChainBrokenLink(t *testing.T) {
 	err := chain.ValidateChain()
 	if err == nil {
 		t.Error("Expected chain validation to fail with broken link")
+	}
+}
+
+func TestBlockSliceValidateChainWithConfig(t *testing.T) {
+	w, _ := wallet.NewWallet()
+
+	// Bloco gênesis
+	genesisCoinbase := NewCoinbaseTransaction(w.GetAddress(), 1000000, 0)
+	genesis := GenesisBlock(genesisCoinbase)
+
+	// Configuração com BlockTime de 5 segundos (mínimo 4 segundos = 80%)
+	config := DefaultChainConfig()
+	config.BlockTime = 5 * time.Second
+
+	// Bloco 1 com timestamp válido
+	coinbase1 := NewCoinbaseTransaction(w.GetAddress(), 50, 1)
+	block1 := NewBlock(1, genesis.Hash, TransactionSlice{coinbase1}, w.GetAddress())
+	block1.Header.Timestamp = genesis.Header.Timestamp + 4 // 4 segundos (80% de 5)
+	hash1, _ := block1.CalculateHash()
+	block1.Hash = hash1
+
+	// Bloco 2 com timestamp inválido (menos de 4 segundos após block1)
+	coinbase2 := NewCoinbaseTransaction(w.GetAddress(), 50, 2)
+	block2 := NewBlock(2, block1.Hash, TransactionSlice{coinbase2}, w.GetAddress())
+	block2.Header.Timestamp = block1.Header.Timestamp + 3 // Apenas 3 segundos
+	hash2, _ := block2.CalculateHash()
+	block2.Hash = hash2
+
+	chain := BlockSlice{genesis, block1, block2}
+
+	// Validação deve falhar com config
+	err := chain.ValidateChainWithConfig(&config)
+	if err == nil {
+		t.Error("Expected chain validation to fail with insufficient block time difference")
+	}
+
+	// Sem config, deve passar (não valida tempo mínimo)
+	err = chain.ValidateChain()
+	if err != nil {
+		t.Errorf("Expected chain validation without config to pass: %v", err)
+	}
+
+	// Agora testa com timestamp válido (exatamente 4 segundos)
+	block2.Header.Timestamp = block1.Header.Timestamp + 4
+	hash2Valid, _ := block2.CalculateHash()
+	block2.Hash = hash2Valid
+
+	chainValid := BlockSlice{genesis, block1, block2}
+	err = chainValid.ValidateChainWithConfig(&config)
+	if err != nil {
+		t.Errorf("Expected chain validation to pass with exactly minimum time: %v", err)
 	}
 }
 

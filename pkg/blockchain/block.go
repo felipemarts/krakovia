@@ -380,8 +380,13 @@ func (blocks BlockSlice) Sort() {
 	}
 }
 
-// ValidateChain valida uma sequência de blocos
+// ValidateChain valida uma sequência de blocos (sem validação de tempo mínimo)
 func (blocks BlockSlice) ValidateChain() error {
+	return blocks.ValidateChainWithConfig(nil)
+}
+
+// ValidateChainWithConfig valida uma sequência de blocos com configuração
+func (blocks BlockSlice) ValidateChainWithConfig(config *ChainConfig) error {
 	if len(blocks) == 0 {
 		return fmt.Errorf("empty chain")
 	}
@@ -413,6 +418,16 @@ func (blocks BlockSlice) ValidateChain() error {
 
 			if blocks[i].Header.Timestamp < blocks[i-1].Header.Timestamp {
 				return fmt.Errorf("block %d timestamp is before previous block", i)
+			}
+
+			// Verifica tempo mínimo entre blocos (80% do BlockTime configurado)
+			if config != nil {
+				minBlockTime := int64(config.BlockTime.Seconds() * 0.8)
+				timeDiff := blocks[i].Header.Timestamp - blocks[i-1].Header.Timestamp
+				if timeDiff < minBlockTime {
+					return fmt.Errorf("block %d timestamp difference (%d seconds) is less than minimum block time (%d seconds, 80%% of %v)",
+						i, timeDiff, minBlockTime, config.BlockTime)
+				}
 			}
 		}
 	}

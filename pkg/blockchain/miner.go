@@ -156,6 +156,13 @@ func (m *Miner) CreateBlock() (*Block, error) {
 		m.address,
 	)
 
+	// Garante que o timestamp respeita o tempo mínimo entre blocos (80% do BlockTime)
+	minBlockTime := int64(config.BlockTime.Seconds() * 0.8)
+	minTimestamp := lastBlock.Header.Timestamp + minBlockTime
+	if block.Header.Timestamp < minTimestamp {
+		block.Header.Timestamp = minTimestamp
+	}
+
 	// Calcula hash
 	hash, err := block.CalculateHash()
 	if err != nil {

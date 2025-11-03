@@ -240,7 +240,7 @@ func (c *Chain) VerifyChain() error {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	return c.blocks.ValidateChain()
+	return c.blocks.ValidateChainWithConfig(&c.config)
 }
 
 // Clone cria uma cópia da chain (para simulações)
