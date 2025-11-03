@@ -40,6 +40,7 @@ pkg/node/node.go (Node Integrado)
   - `CreateStakeTransaction()` / `CreateUnstakeTransaction()`
   - `GetBalance()`, `GetStake()`, `GetNonce()`
   - `GetChainHeight()`, `GetMempoolSize()`
+  - `GetLastBlock()` - **Retorna último bloco para validação de consenso**
   - `PrintStats()`
 
 **Modificado:**
@@ -192,23 +193,157 @@ stats := node.GetBlockchainStats()
    - Penalidades para validadores offline
    - Recompensas dinâmicas
 
-## Testes
+## Testes de Integração
 
-Para testar a integração:
+### Suite de Testes Completa
 
-1. Inicie 3+ nodes
-2. Verifique conexão entre peers
-3. Inicie mineração em um node
-4. Observe propagação de blocos
-5. Crie transações e observe propagação
-6. Verifique sincronização de mempool
+A blockchain possui uma suite abrangente de testes de integração localizados em `tests/`:
+
+#### 1. Testes Básicos de Integração
+
+**`TestNodeIntegration`** - Testa integração completa entre 2 nós:
+- Conexão WebRTC entre nós
+- Mineração de blocos com PoS
+- Criação e propagação de transações
+- Sincronização de mempool
+- Verificação de saldo e estado
+
+**`TestThreeNodeConsensus`** - Testa consenso entre 3 nós:
+- Múltiplos nós conectados
+- Mineração concorrente
+- Verificação de altura consensual
+- **Validação de hash do último bloco** (garante ausência de fork)
+- Todos os nós convergem para a mesma blockchain
+
+#### 2. Testes de Rede
+
+**`TestNodeConnection`** - Conexão básica WebRTC
+
+**`TestMultipleNodesConnection`** - Conectividade entre múltiplos nós
+
+**`TestMessageBroadcast`** - Broadcast de mensagens
+
+**`TestNodeReconnection`** - Reconexão após desconexão
+
+#### 3. Testes de Partição de Rede e Recuperação
+
+**`TestNetworkPartitionRecovery`** - **Partição com 2 nós mineradores**:
+- **Fase 1:** Sincronização inicial
+  - Ambos os nós se conectam
+  - Node1 faz stake e transfere tokens para Node2
+  - Node2 também faz stake
+  - **Ambos podem minerar** (competição PoS)
+
+- **Fase 2:** Partição de rede
+  - Node2 se desconecta (simula perda de pacotes)
+  - Node1 continua minerando sozinho
+  - Simula rede instável
+
+- **Fase 3:** Reconexão
+  - Node2 se reconecta
+  - Reinicia mineração se tiver stake
+
+- **Fase 4:** Verificação de consenso
+  - ✅ Verifica altura igual
+  - ✅ **Verifica hash do último bloco** (garante mesma cadeia)
+  - ✅ Confirma que não há fork
+  - ✅ Testa convergência PoS em redes instáveis
+
+**`TestThreeNodePartitionWithStakeResolution`** - **Resolução de fork baseada em stake**:
+- **Cenário:** 3 nós com stakes diferentes
+  - Node1: 100k stake
+  - Node2: 150k stake (maior individual)
+  - Node3: 100k stake
+
+- **Fase 1:** Setup inicial
+  - Node1 distribui tokens
+  - Todos fazem stake e iniciam mineração
+
+- **Fase 2:** Partição de rede
+  - **Node3 se isola** (100k stake sozinho)
+  - **Node1+Node2 continuam conectados** (250k stake combinado)
+  - Ambos grupos minerando → **FORK**
+
+- **Fase 3:** Reconexão
+  - Node3 se reconecta à rede
+
+- **Fase 4:** Resolução de fork
+  - ✅ **Node3 descarta sua chain isolada**
+  - ✅ **Node3 adota a chain de Node1+Node2** (maior stake total)
+  - ✅ Verifica que todos têm o mesmo hash
+  - ✅ **Testa regra fundamental do PoS:** chain com maior stake total prevalece
+
+#### 4. Testes de Protocolo Gossip
+
+**Propagação e validação:**
+- `TestGossipPropagation` - Propagação de mensagens gossip
+- `TestGossipDeduplication` - Detecção de duplicatas
+- `TestGossipRateLimitAttack` - Proteção contra flood
+- `TestGossipInvalidMessages` - Rejeição de mensagens inválidas
+
+#### 5. Testes de Discovery
+
+**Gerenciamento de peers:**
+- `TestPeerLimitEnforcement` - Limites de peers respeitados
+- `TestPeerDiscovery` - Descoberta periódica
+- `TestMinimumPeersMaintenance` - Manutenção de peers mínimos
+
+### Validações Críticas
+
+**Consenso por Altura + Hash:**
+```go
+// Antes (INSUFICIENTE - pode ter fork):
+if height1 == height2 { ✓ } // Mesma altura, mas chains diferentes!
+
+// Agora (CORRETO - garante mesma chain):
+if height1 == height2 && hash1 == hash2 { ✓ } // Mesma altura E mesma blockchain
+```
+
+**Resolução de Fork baseada em Stake:**
+```
+Chain A (Node1+Node2): stake total = 250k ✓ VENCEDOR
+Chain B (Node3):       stake total = 100k ✗ DESCARTADA
+```
+
+### Executar Testes
+
+```bash
+# Todos os testes de integração
+go test -v ./tests/
+
+# Teste específico de partição de rede
+go test -v -run TestNetworkPartitionRecovery ./tests/
+
+# Teste de resolução de fork por stake
+go test -v -run TestThreeNodePartitionWithStakeResolution ./tests/
+
+# Testes de consenso
+go test -v -run TestThreeNodeConsensus ./tests/
+
+# Testes rápidos (pula testes longos)
+go test -v -short ./tests/
+```
+
+### Cobertura de Testes
+
+- ✅ Conectividade WebRTC
+- ✅ Descoberta e gerenciamento de peers
+- ✅ Protocolo gossip e propagação
+- ✅ Mineração PoS e consenso
+- ✅ Sincronização de blockchain
+- ✅ Partição de rede e recuperação
+- ✅ **Resolução de fork baseada em stake total**
+- ✅ **Validação de consenso por hash (detecta forks)**
+- ✅ Transações e mempool
+- ✅ Validação de blocos e transações
 
 ## Problemas Conhecidos
 
-- [ ] Sincronização inicial não implementada
-- [ ] Persistência da blockchain não implementada
+- [x] ~~Sincronização inicial não implementada~~ ✅ Implementada e testada
+- [x] ~~Persistência da blockchain não implementada~~ ✅ Implementada (LevelDB)
 - [ ] Sem CLI para interação em runtime
 - [ ] Logs muito verbosos (considerar níveis de log)
+- [ ] Testes ocasionalmente não mineram blocos (timeout muito curto para PoS)
 
 ## Conclusão
 

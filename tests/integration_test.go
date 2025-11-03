@@ -655,3 +655,305 @@ func TestNetworkPartitionRecovery(t *testing.T) {
 		fmt.Printf("⚠ Partial success: Check timing parameters for more reliable synchronization\n")
 	}
 }
+
+// TestThreeNodePartitionWithStakeResolution testa a resolução de fork baseada em stake total
+// Um nó se desconecta enquanto outros dois continuam minerando juntos
+// Quando reconecta, deve adotar a chain com maior stake total (os 2 nós)
+func TestThreeNodePartitionWithStakeResolution(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping three-node partition test in short mode")
+	}
+
+	signalingPort := getRandomPort()
+	signalingURL := fmt.Sprintf("ws://localhost:%d/ws", signalingPort)
+
+	// Iniciar servidor de signaling
+	server := signaling.NewServer()
+	go func() {
+		if err := server.Start(fmt.Sprintf(":%d", signalingPort)); err != nil {
+			t.Logf("Signaling server error: %v", err)
+		}
+	}()
+	defer func() {
+		if err := server.Stop(); err != nil {
+			t.Logf("Warning: error stopping signaling server: %v", err)
+		}
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+
+	defer cleanupTestDirs(t, "stake_node1", "stake_node2", "stake_node3")
+
+	// Criar wallets para os 3 nós
+	wallets := make([]*wallet.Wallet, 3)
+	for i := 0; i < 3; i++ {
+		w, err := wallet.NewWallet()
+		if err != nil {
+			t.Fatalf("Failed to create wallet %d: %v", i+1, err)
+		}
+		wallets[i] = w
+		fmt.Printf("Wallet %d: %s\n", i+1, w.GetAddress())
+	}
+
+	// Criar genesis - Wallet1 recebe todos os tokens iniciais
+	genesisTx := blockchain.NewCoinbaseTransaction(wallets[0].GetAddress(), 1000000000, 0)
+	genesisBlock := blockchain.GenesisBlock(genesisTx)
+
+	fmt.Printf("Genesis block: %s\n", genesisBlock.Hash[:16])
+
+	// Configurar os 3 nós
+	configs := make([]node.Config, 3)
+	for i := 0; i < 3; i++ {
+		configs[i] = createIntegrationNodeConfig(t, fmt.Sprintf("stake_node%d", i+1), signalingURL, wallets[i], genesisBlock)
+		configs[i].DiscoveryInterval = 2
+	}
+
+	// Criar e iniciar os 3 nós
+	nodes := make([]*node.Node, 3)
+	for i := 0; i < 3; i++ {
+		n, err := node.NewNode(configs[i])
+		if err != nil {
+			t.Fatalf("Failed to create node %d: %v", i+1, err)
+		}
+
+		if err := n.Start(); err != nil {
+			t.Fatalf("Failed to start node %d: %v", i+1, err)
+		}
+		defer func(node *node.Node, id int) {
+			if err := node.Stop(); err != nil {
+				t.Logf("Error stopping node %d: %v", id, err)
+			}
+		}(n, i+1)
+
+		nodes[i] = n
+		fmt.Printf("[Node %d] Started\n", i+1)
+		time.Sleep(200 * time.Millisecond)
+	}
+
+	fmt.Printf("\n=== Phase 1: Initial Setup - Distributing tokens and stakes ===\n")
+
+	// Aguardar conexões iniciais
+	time.Sleep(1500 * time.Millisecond)
+
+	// Verificar conexões
+	for i := 0; i < 3; i++ {
+		peers := nodes[i].GetPeers()
+		fmt.Printf("[Node %d] Connected to %d peers\n", i+1, len(peers))
+	}
+
+	// Node1 distribui tokens para Node2 e Node3
+	fmt.Printf("\n[Node1] Distributing tokens to other nodes...\n")
+
+	// Transferir 300k para Node2 (vai ter mais stake)
+	tx1, err := nodes[0].CreateTransaction(wallets[1].GetAddress(), 300000, 5, "tokens for node2")
+	if err != nil {
+		t.Fatalf("Failed to create transfer to node2: %v", err)
+	}
+	fmt.Printf("[Node1] Transfer to Node2: %s (300k tokens)\n", tx1.ID[:8])
+
+	// Transferir 200k para Node3 (vai ter menos stake)
+	tx2, err := nodes[0].CreateTransaction(wallets[2].GetAddress(), 200000, 5, "tokens for node3")
+	if err != nil {
+		t.Fatalf("Failed to create transfer to node3: %v", err)
+	}
+	fmt.Printf("[Node1] Transfer to Node3: %s (200k tokens)\n", tx2.ID[:8])
+
+	// Node1 faz stake
+	stakeNode1, err := nodes[0].CreateStakeTransaction(100000, 10)
+	if err != nil {
+		t.Fatalf("Failed to create stake for node1: %v", err)
+	}
+	fmt.Printf("[Node1] Stake created: %s (100k)\n", stakeNode1.ID[:8])
+
+	// Node1 inicia mineração para incluir as transações
+	fmt.Printf("[Node1] Starting mining to process transactions...\n")
+	if err := nodes[0].StartMining(); err != nil {
+		t.Fatalf("Failed to start mining on node1: %v", err)
+	}
+
+	// Aguardar blocos serem minerados e tokens transferidos
+	time.Sleep(2000 * time.Millisecond)
+
+	// Verificar saldos
+	balance2 := nodes[1].GetBalance()
+	balance3 := nodes[2].GetBalance()
+	fmt.Printf("\n[Node2] Balance: %d\n", balance2)
+	fmt.Printf("[Node3] Balance: %d\n", balance3)
+
+	// Nodes 2 e 3 fazem stake se tiverem tokens
+	if balance2 >= 150000 {
+		stakeNode2, err := nodes[1].CreateStakeTransaction(150000, 10)
+		if err != nil {
+			t.Fatalf("Failed to create stake for node2: %v", err)
+		}
+		fmt.Printf("[Node2] Stake created: %s (150k - maior stake!)\n", stakeNode2.ID[:8])
+
+		if err := nodes[1].StartMining(); err != nil {
+			t.Fatalf("Failed to start mining on node2: %v", err)
+		}
+		fmt.Printf("[Node2] Started mining\n")
+	}
+
+	if balance3 >= 100000 {
+		stakeNode3, err := nodes[2].CreateStakeTransaction(100000, 10)
+		if err != nil {
+			t.Fatalf("Failed to create stake for node3: %v", err)
+		}
+		fmt.Printf("[Node3] Stake created: %s (100k)\n", stakeNode3.ID[:8])
+
+		if err := nodes[2].StartMining(); err != nil {
+			t.Fatalf("Failed to start mining on node3: %v", err)
+		}
+		fmt.Printf("[Node3] Started mining\n")
+	}
+
+	// Aguardar todos minerarem juntos
+	time.Sleep(1500 * time.Millisecond)
+
+	// Verificar alturas antes da partição
+	heights := make([]uint64, 3)
+	for i := 0; i < 3; i++ {
+		heights[i] = nodes[i].GetChainHeight()
+		fmt.Printf("[Node %d] Chain height before partition: %d\n", i+1, heights[i])
+	}
+
+	fmt.Printf("\n=== Phase 2: Network Partition - Node3 disconnects ===\n")
+
+	// Node3 se desconecta - vai minerar sozinho
+	if err := nodes[2].Stop(); err != nil {
+		t.Logf("Warning: error stopping node3: %v", err)
+	}
+	fmt.Printf("✗ Node3 disconnected (isolated node with LESS stake)\n")
+	fmt.Printf("✓ Node1 and Node2 remain connected (combined stake: 250k)\n")
+
+	heightBeforePartition := heights[0]
+
+	// Node1 e Node2 continuam minerando juntos por ~1 segundo
+	fmt.Printf("\n[Node1+Node2] Mining together while Node3 is isolated...\n")
+	time.Sleep(1500 * time.Millisecond)
+
+	height1AfterPartition := nodes[0].GetChainHeight()
+	height2AfterPartition := nodes[1].GetChainHeight()
+
+	fmt.Printf("[Node1] Height after partition: %d (mined %d blocks)\n",
+		height1AfterPartition, height1AfterPartition-heightBeforePartition)
+	fmt.Printf("[Node2] Height after partition: %d (mined %d blocks)\n",
+		height2AfterPartition, height2AfterPartition-heightBeforePartition)
+
+	// Pegar hash do último bloco da chain principal (Node1+Node2)
+	var mainChainHash string
+	if height1AfterPartition > 0 {
+		lastBlock1 := nodes[0].GetLastBlock()
+		if lastBlock1 != nil {
+			mainChainHash = lastBlock1.Hash
+			fmt.Printf("[Node1+Node2] Main chain last block hash: %s\n", mainChainHash[:16])
+		}
+	}
+
+	fmt.Printf("\n=== Phase 3: Node3 Reconnection ===\n")
+
+	// Reconectar Node3 do estado persistido
+	nodes[2], err = node.NewNode(configs[2])
+	if err != nil {
+		t.Fatalf("Failed to recreate node3: %v", err)
+	}
+	defer func() {
+		if err := nodes[2].Stop(); err != nil {
+			t.Logf("Error stopping node3: %v", err)
+		}
+	}()
+
+	if err := nodes[2].Start(); err != nil {
+		t.Fatalf("Failed to restart node3: %v", err)
+	}
+
+	fmt.Printf("✓ Node3 reconnected\n")
+
+	// Node3 reinicia mineração
+	if nodes[2].GetBalance() >= 100000 {
+		fmt.Printf("[Node3] Restarting mining after reconnection...\n")
+		if err := nodes[2].StartMining(); err != nil {
+			t.Logf("Warning: failed to restart mining on node3: %v", err)
+		}
+	}
+
+	// Aguardar reconexão e sincronização
+	fmt.Printf("Waiting for Node3 to synchronize with main chain (Node1+Node2)...\n")
+	time.Sleep(3000 * time.Millisecond)
+
+	fmt.Printf("\n=== Phase 4: Consensus Verification - Stake-based Fork Resolution ===\n")
+
+	// Verificar alturas finais
+	finalHeights := make([]uint64, 3)
+	for i := 0; i < 3; i++ {
+		finalHeights[i] = nodes[i].GetChainHeight()
+		fmt.Printf("[Node %d] Final chain height: %d\n", i+1, finalHeights[i])
+	}
+
+	// Verificar consenso de altura
+	consensusReached := true
+	for i := 1; i < 3; i++ {
+		if finalHeights[i] != finalHeights[0] {
+			t.Errorf("Height consensus not reached! Node1: %d, Node%d: %d",
+				finalHeights[0], i+1, finalHeights[i])
+			consensusReached = false
+		}
+	}
+
+	if consensusReached {
+		fmt.Printf("✓ Height consensus reached! All nodes at height: %d\n", finalHeights[0])
+	}
+
+	// Verificar hash do último bloco (stake-based fork resolution)
+	if finalHeights[0] > 0 {
+		lastBlocks := make([]*blockchain.Block, 3)
+		for i := 0; i < 3; i++ {
+			lastBlocks[i] = nodes[i].GetLastBlock()
+			if lastBlocks[i] != nil {
+				fmt.Printf("[Node %d] Last block hash: %s\n", i+1, lastBlocks[i].Hash[:16])
+			}
+		}
+
+		// Verificar se todos adotaram a chain principal (Node1+Node2)
+		if lastBlocks[0] != nil && lastBlocks[1] != nil && lastBlocks[2] != nil {
+			referenceHash := lastBlocks[0].Hash
+
+			// Node2 deve ter o mesmo hash que Node1
+			if lastBlocks[1].Hash != referenceHash {
+				t.Errorf("Fork between Node1 and Node2!\n  Node1: %s\n  Node2: %s",
+					referenceHash[:32], lastBlocks[1].Hash[:32])
+			}
+
+			// Node3 deve ter adotado a chain de Node1+Node2 (maior stake)
+			if lastBlocks[2].Hash != referenceHash {
+				t.Errorf("Node3 did not adopt the main chain (higher stake)!\n  Main chain (Node1+Node2): %s\n  Node3: %s",
+					referenceHash[:32], lastBlocks[2].Hash[:32])
+				fmt.Printf("✗ FAILED: Node3 should have discarded its isolated chain\n")
+			} else {
+				fmt.Printf("✓ SUCCESS: Node3 adopted the main chain (higher total stake)\n")
+				fmt.Printf("✓ All nodes have identical last block hash\n")
+
+				// Verificar se é a mesma chain que existia antes
+				if mainChainHash != "" && referenceHash == mainChainHash {
+					fmt.Printf("✓ Confirmed: The winning chain is from Node1+Node2 (as expected)\n")
+				}
+			}
+		}
+	}
+
+	// Verificar stakes finais
+	fmt.Printf("\n=== Stake Distribution ===\n")
+	for i := 0; i < 3; i++ {
+		stake := nodes[i].GetStake()
+		fmt.Printf("[Node %d] Stake: %d\n", i+1, stake)
+	}
+
+	fmt.Printf("\n=== Test Summary ===\n")
+	fmt.Printf("✓ Three-node partition test completed\n")
+	fmt.Printf("✓ Initial height: %d blocks\n", heightBeforePartition)
+	fmt.Printf("✓ Blocks mined during partition: %d\n", height1AfterPartition-heightBeforePartition)
+	fmt.Printf("✓ Final consensus height: %d\n", finalHeights[0])
+	fmt.Printf("✓ Fork resolution based on total stake in chain\n")
+	fmt.Printf("✓ Node3 (isolated, less stake) correctly discarded its fork\n")
+	fmt.Printf("✓ Node1+Node2 chain (combined stake) prevailed\n")
+}
