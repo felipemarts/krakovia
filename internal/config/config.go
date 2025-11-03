@@ -25,17 +25,28 @@ type WalletConfig struct {
 	Address    string `json:"address"`     // Endereço derivado da chave pública
 }
 
+// CheckpointConfig representa a configuração do sistema de checkpoints
+type CheckpointConfig struct {
+	Enabled       bool `json:"enabled"`          // Habilita o sistema de checkpoints
+	Interval      int  `json:"interval"`         // Checkpoint a cada X blocos
+	KeepInMemory  int  `json:"keep_in_memory"`   // Manter últimos X blocos em memória
+	KeepOnDisk    int  `json:"keep_on_disk"`     // Manter últimos X checkpoints no disco
+	CSVDelimiter  string `json:"csv_delimiter"`  // Delimitador do CSV (padrão: ",")
+	Compression   bool `json:"compression"`      // Comprimir CSV no LevelDB
+}
+
 // NodeConfig representa a configuração de um nó
 type NodeConfig struct {
-	ID                string        `json:"id"`
-	Address           string        `json:"address"`
-	DBPath            string        `json:"db_path"`
-	SignalingServer   string        `json:"signaling_server"`
-	MaxPeers          int           `json:"max_peers"`          // Máximo de peers conectados (0 = ilimitado)
-	MinPeers          int           `json:"min_peers"`          // Mínimo de peers desejado
-	DiscoveryInterval int           `json:"discovery_interval"` // Intervalo de descoberta em segundos
-	Wallet            WalletConfig  `json:"wallet"`             // Configuração da carteira
-	Genesis           *GenesisBlock `json:"genesis,omitempty"`  // Configuração do bloco gênesis (opcional)
+	ID                string            `json:"id"`
+	Address           string            `json:"address"`
+	DBPath            string            `json:"db_path"`
+	SignalingServer   string            `json:"signaling_server"`
+	MaxPeers          int               `json:"max_peers"`          // Máximo de peers conectados (0 = ilimitado)
+	MinPeers          int               `json:"min_peers"`          // Mínimo de peers desejado
+	DiscoveryInterval int               `json:"discovery_interval"` // Intervalo de descoberta em segundos
+	Wallet            WalletConfig      `json:"wallet"`             // Configuração da carteira
+	Genesis           *GenesisBlock     `json:"genesis,omitempty"`  // Configuração do bloco gênesis (opcional)
+	Checkpoint        *CheckpointConfig `json:"checkpoint,omitempty"` // Configuração de checkpoints (opcional)
 }
 
 // LoadNodeConfig carrega a configuração de um arquivo JSON
@@ -121,6 +132,36 @@ func LoadNodeConfig(filepath string) (*NodeConfig, error) {
 	// Validar limites
 	if config.MinPeers > config.MaxPeers {
 		return nil, fmt.Errorf("min_peers (%d) cannot be greater than max_peers (%d)", config.MinPeers, config.MaxPeers)
+	}
+
+	// Configuração de checkpoint (valores padrão se não fornecido)
+	if config.Checkpoint != nil {
+		if config.Checkpoint.Enabled {
+			// Valores padrão
+			if config.Checkpoint.Interval == 0 {
+				config.Checkpoint.Interval = 100 // Padrão: checkpoint a cada 100 blocos
+			}
+			if config.Checkpoint.KeepInMemory == 0 {
+				config.Checkpoint.KeepInMemory = 200 // Padrão: manter últimos 200 blocos em memória
+			}
+			if config.Checkpoint.KeepOnDisk == 0 {
+				config.Checkpoint.KeepOnDisk = 2 // Padrão: manter últimos 2 checkpoints no disco
+			}
+			if config.Checkpoint.CSVDelimiter == "" {
+				config.Checkpoint.CSVDelimiter = "," // Padrão: vírgula
+			}
+
+			// Validações
+			if config.Checkpoint.Interval < 1 {
+				return nil, fmt.Errorf("checkpoint interval must be at least 1")
+			}
+			if config.Checkpoint.KeepInMemory < config.Checkpoint.Interval {
+				return nil, fmt.Errorf("keep_in_memory (%d) must be at least equal to interval (%d)", config.Checkpoint.KeepInMemory, config.Checkpoint.Interval)
+			}
+			if config.Checkpoint.KeepOnDisk < 1 {
+				return nil, fmt.Errorf("keep_on_disk must be at least 1")
+			}
+		}
 	}
 
 	return &config, nil

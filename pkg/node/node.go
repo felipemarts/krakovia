@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/krakovia/blockchain/internal/config"
 	"github.com/krakovia/blockchain/pkg/blockchain"
 	"github.com/krakovia/blockchain/pkg/network"
 	"github.com/krakovia/blockchain/pkg/wallet"
@@ -35,6 +36,12 @@ type Node struct {
 	// Controle de mineração
 	mining   bool
 	stopMine chan struct{}
+
+	// Checkpoint
+	checkpointConfig     *config.CheckpointConfig
+	lastCheckpointHash   string
+	lastCheckpointHeight uint64
+	checkpointMutex      sync.RWMutex
 }
 
 // Config contém as configurações para criar um nó
@@ -48,9 +55,10 @@ type Config struct {
 	DiscoveryInterval int // em segundos
 
 	// Configurações blockchain
-	Wallet       *wallet.Wallet
-	GenesisBlock *blockchain.Block
-	ChainConfig  blockchain.ChainConfig
+	Wallet           *wallet.Wallet
+	GenesisBlock     *blockchain.Block
+	ChainConfig      blockchain.ChainConfig
+	CheckpointConfig *config.CheckpointConfig
 }
 
 // NewNode cria uma nova instância de nó
@@ -120,10 +128,21 @@ func NewNode(config Config) (*Node, error) {
 		chain:             chain,
 		mempool:           mempool,
 		miner:             miner,
+		checkpointConfig:  config.CheckpointConfig,
+	}
+
+	// Carregar último checkpoint do disco (se existir)
+	if config.CheckpointConfig != nil && config.CheckpointConfig.Enabled {
+		node.loadLastCheckpoint()
 	}
 
 	// Configurar callbacks do minerador para broadcast via rede
 	miner.SetOnBlockCreated(func(block *blockchain.Block) {
+		// Adicionar checkpoint hash ao bloco se disponível
+		node.addCheckpointHashToBlock(block)
+		// Tentar criar checkpoint se necessário
+		node.tryCreateCheckpoint(block.Header.Height)
+		// Broadcast do bloco
 		node.broadcastBlock(block)
 	})
 
@@ -324,6 +343,14 @@ func (n *Node) handleBlockMessage(peerID string, data []byte) {
 		return // Já tem, ignora
 	}
 
+	// Validar checkpoint hash se presente no bloco
+	if block.Header.CheckpointHash != "" && n.checkpointConfig != nil && n.checkpointConfig.Enabled {
+		if err := n.validateBlockCheckpointHash(block); err != nil {
+			fmt.Printf("[%s] Block checkpoint validation failed: %v\n", n.ID, err)
+			return
+		}
+	}
+
 	// Tenta adicionar à chain
 	if err := n.chain.AddBlock(block); err != nil {
 		fmt.Printf("[%s] Failed to add block: %v\n", n.ID, err)
@@ -331,6 +358,9 @@ func (n *Node) handleBlockMessage(peerID string, data []byte) {
 	}
 
 	fmt.Printf("[%s] Block %d added to chain successfully\n", n.ID, block.Header.Height)
+
+	// Tentar criar checkpoint se necessário
+	n.tryCreateCheckpoint(block.Header.Height)
 
 	// Remove transações do mempool que estão no bloco
 	txIDs := make([]string, 0, len(block.Transactions))
@@ -649,6 +679,11 @@ func (n *Node) GetMempoolSize() int {
 	return n.mempool.Size()
 }
 
+// GetBlocksInMemory retorna o número de blocos em memória
+func (n *Node) GetBlocksInMemory() int {
+	return len(n.chain.GetAllBlocks())
+}
+
 // GetBlockchainStats retorna estatísticas da blockchain
 func (n *Node) GetBlockchainStats() blockchain.ChainStats {
 	return n.chain.GetChainStats()
@@ -697,4 +732,236 @@ func (n *Node) requestSync(peerID string) {
 			fmt.Printf("[%s] Requested sync from %s (from height %d)\n", n.ID, peerID, req.FromHeight)
 		}
 	}
+}
+
+// addCheckpointHashToBlock adiciona o hash do último checkpoint ao bloco
+func (n *Node) addCheckpointHashToBlock(block *blockchain.Block) {
+	if n.checkpointConfig == nil || !n.checkpointConfig.Enabled {
+		return
+	}
+
+	n.checkpointMutex.RLock()
+	checkpointHash := n.lastCheckpointHash
+	checkpointHeight := n.lastCheckpointHeight
+	n.checkpointMutex.RUnlock()
+
+	// Se temos um checkpoint, adicionar ao bloco
+	if checkpointHash != "" {
+		block.Header.CheckpointHash = checkpointHash
+		block.Header.CheckpointHeight = checkpointHeight
+
+		// Recalcular hash do bloco com os novos campos
+		hash, err := block.CalculateHash()
+		if err != nil {
+			fmt.Printf("[%s] Failed to recalculate block hash with checkpoint: %v\n", n.ID, err)
+			return
+		}
+		block.Hash = hash
+
+		fmt.Printf("[%s] Added checkpoint hash to block %d: checkpoint_height=%d, hash=%s\n",
+			n.ID, block.Header.Height, checkpointHeight, checkpointHash[:16])
+	}
+}
+
+// tryCreateCheckpoint tenta criar um checkpoint se necessário
+func (n *Node) tryCreateCheckpoint(currentHeight uint64) {
+	// Verificar se checkpoints estão habilitados
+	if n.checkpointConfig == nil || !n.checkpointConfig.Enabled {
+		return
+	}
+
+	interval := uint64(n.checkpointConfig.Interval)
+
+	// Verificar se atingimos o intervalo para criar checkpoint
+	// Criamos checkpoint quando: currentHeight % interval == 0 e currentHeight > 0
+	if currentHeight%interval != 0 || currentHeight == 0 {
+		return
+	}
+
+	// Altura do bloco para o qual vamos criar o checkpoint
+	// Checkpoint é do estado no bloco (currentHeight - interval)
+	checkpointHeight := currentHeight - interval
+
+	fmt.Printf("[%s] Creating checkpoint for block %d (current height: %d)\n", n.ID, checkpointHeight, currentHeight)
+
+	// Coletar estado atual
+	accounts := n.collectCurrentState()
+
+	// Criar checkpoint
+	checkpoint, err := blockchain.CreateCheckpoint(
+		checkpointHeight,
+		time.Now().Unix(),
+		accounts,
+		n.checkpointConfig.CSVDelimiter,
+	)
+	if err != nil {
+		fmt.Printf("[%s] Failed to create checkpoint: %v\n", n.ID, err)
+		return
+	}
+
+	// Salvar checkpoint no LevelDB
+	err = blockchain.SaveCheckpointToDB(n.db, checkpoint, n.checkpointConfig.Compression)
+	if err != nil {
+		fmt.Printf("[%s] Failed to save checkpoint: %v\n", n.ID, err)
+		return
+	}
+
+	fmt.Printf("[%s] Checkpoint created and saved: height=%d, hash=%s, accounts=%d\n",
+		n.ID, checkpointHeight, checkpoint.Hash[:16], len(checkpoint.Accounts))
+
+	// Armazenar checkpoint hash para incluir em próximos blocos
+	n.checkpointMutex.Lock()
+	n.lastCheckpointHash = checkpoint.Hash
+	n.lastCheckpointHeight = checkpointHeight
+	n.checkpointMutex.Unlock()
+
+	// Fazer pruning de checkpoints antigos
+	err = blockchain.PruneOldCheckpoints(n.db, n.checkpointConfig.KeepOnDisk)
+	if err != nil {
+		fmt.Printf("[%s] Failed to prune old checkpoints: %v\n", n.ID, err)
+	}
+
+	// Fazer pruning de blocos antigos se necessário
+	n.tryPruneBlocks(currentHeight)
+}
+
+// collectCurrentState coleta o estado atual de todas as contas
+func (n *Node) collectCurrentState() map[string]*blockchain.AccountState {
+	balances := n.chain.GetContext().GetAllBalances()
+	stakes := n.chain.GetContext().GetAllStakes()
+	nonces := n.chain.GetContext().GetAllNonces()
+
+	// Unir todos os endereços
+	allAddresses := make(map[string]bool)
+	for addr := range balances {
+		allAddresses[addr] = true
+	}
+	for addr := range stakes {
+		allAddresses[addr] = true
+	}
+	for addr := range nonces {
+		allAddresses[addr] = true
+	}
+
+	// Criar mapa de estados
+	accounts := make(map[string]*blockchain.AccountState)
+	for addr := range allAddresses {
+		accounts[addr] = &blockchain.AccountState{
+			Address: addr,
+			Balance: balances[addr],
+			Stake:   stakes[addr],
+			Nonce:   nonces[addr],
+		}
+	}
+
+	return accounts
+}
+
+// tryPruneBlocks tenta fazer pruning de blocos antigos
+func (n *Node) tryPruneBlocks(currentHeight uint64) {
+	if n.checkpointConfig == nil || !n.checkpointConfig.Enabled {
+		return
+	}
+
+	// Verificar se temos blocos suficientes para fazer pruning
+	blocksInMemory := n.GetBlocksInMemory()
+	keepInMemory := n.checkpointConfig.KeepInMemory
+
+	if blocksInMemory <= keepInMemory {
+		return // Não precisa fazer pruning ainda
+	}
+
+	fmt.Printf("[%s] Pruning old blocks: current=%d, in_memory=%d, keep=%d\n",
+		n.ID, blocksInMemory, blocksInMemory, keepInMemory)
+
+	// Obter ponteiro para o slice de blocos da chain
+	allBlocks := n.chain.GetAllBlocksPointer()
+	if allBlocks == nil {
+		return
+	}
+
+	err := blockchain.PruneOldBlocks(n.db, allBlocks, keepInMemory)
+	if err != nil {
+		fmt.Printf("[%s] Failed to prune old blocks: %v\n", n.ID, err)
+		return
+	}
+
+	fmt.Printf("[%s] Blocks pruned successfully: now %d blocks in memory\n", n.ID, len(*allBlocks))
+}
+
+// validateBlockCheckpointHash valida o hash de checkpoint em um bloco recebido
+func (n *Node) validateBlockCheckpointHash(block *blockchain.Block) error {
+	if block.Header.CheckpointHash == "" {
+		return nil // Nenhum checkpoint para validar
+	}
+
+	checkpointHeight := block.Header.CheckpointHeight
+
+	fmt.Printf("[%s] Validating checkpoint hash in block %d: checkpoint_height=%d, hash=%s\n",
+		n.ID, block.Header.Height, checkpointHeight, block.Header.CheckpointHash[:16])
+
+	// Primeiro, tentar carregar checkpoint do disco
+	checkpoint, err := blockchain.LoadCheckpointFromDB(n.db, checkpointHeight)
+	if err == nil {
+		// Temos o checkpoint no disco, validar hash
+		if checkpoint.Hash != block.Header.CheckpointHash {
+			return fmt.Errorf("checkpoint hash mismatch: expected %s, got %s",
+				checkpoint.Hash, block.Header.CheckpointHash)
+		}
+		fmt.Printf("[%s] Checkpoint hash validated successfully from disk\n", n.ID)
+		return nil
+	}
+
+	// Se não temos no disco, precisamos recalcular baseado no nosso estado local
+	// Verificar se temos a altura do checkpoint na nossa chain
+	currentHeight := n.chain.GetHeight()
+	if checkpointHeight > currentHeight {
+		// Ainda não temos esse bloco, não podemos validar
+		// Isso é normal durante sincronização inicial
+		fmt.Printf("[%s] Cannot validate checkpoint yet (checkpoint height %d > current height %d)\n",
+			n.ID, checkpointHeight, currentHeight)
+		return nil
+	}
+
+	// Coletar estado atual e calcular hash
+	accounts := n.collectCurrentState()
+
+	// Gerar CSV e calcular hash
+	csv := blockchain.GenerateCheckpointCSV(accounts, n.checkpointConfig.CSVDelimiter)
+	calculatedHash := blockchain.CalculateCheckpointHash(csv)
+
+	// Comparar hashes
+	if calculatedHash != block.Header.CheckpointHash {
+		return fmt.Errorf("checkpoint hash mismatch: local calculated %s, block has %s (checkpoint height %d)",
+			calculatedHash[:16], block.Header.CheckpointHash[:16], checkpointHeight)
+	}
+
+	fmt.Printf("[%s] Checkpoint hash validated successfully from local state\n", n.ID)
+	return nil
+}
+
+// loadLastCheckpoint carrega o último checkpoint do disco
+func (n *Node) loadLastCheckpoint() {
+	// Obter altura do último checkpoint
+	lastHeight, err := blockchain.GetLastCheckpointHeight(n.db)
+	if err != nil {
+		// Não há checkpoint ainda, isso é normal
+		return
+	}
+
+	// Carregar checkpoint
+	checkpoint, err := blockchain.LoadCheckpointFromDB(n.db, lastHeight)
+	if err != nil {
+		fmt.Printf("[%s] Warning: failed to load last checkpoint from disk: %v\n", n.ID, err)
+		return
+	}
+
+	// Armazenar checkpoint hash
+	n.checkpointMutex.Lock()
+	n.lastCheckpointHash = checkpoint.Hash
+	n.lastCheckpointHeight = checkpoint.Height
+	n.checkpointMutex.Unlock()
+
+	fmt.Printf("[%s] Loaded last checkpoint from disk: height=%d, hash=%s\n",
+		n.ID, checkpoint.Height, checkpoint.Hash[:16])
 }

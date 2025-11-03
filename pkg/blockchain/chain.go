@@ -155,7 +155,12 @@ func (c *Chain) GetHeight() uint64 {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	return uint64(len(c.blocks) - 1)
+	if len(c.blocks) == 0 {
+		return 0
+	}
+
+	// Retorna a altura do último bloco (não o tamanho do slice)
+	return c.blocks[len(c.blocks)-1].Header.Height
 }
 
 // GetBalance retorna o saldo de um endereço
@@ -212,6 +217,16 @@ func (c *Chain) GetAllBlocks() []*Block {
 	blocks := make([]*Block, len(c.blocks))
 	copy(blocks, c.blocks)
 	return blocks
+}
+
+// GetAllBlocksPointer retorna ponteiro para o slice de blocos (para pruning)
+func (c *Chain) GetAllBlocksPointer() *BlockSlice {
+	return &c.blocks
+}
+
+// GetContext retorna o contexto da chain
+func (c *Chain) GetContext() *Context {
+	return c.context
 }
 
 // GetBlockRange retorna blocos em um intervalo de altura

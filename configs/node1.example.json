@@ -16,5 +16,13 @@
     "recipient_addr": "a3f5c8b2d9e1f4a6c7b8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0",
     "amount": 1000000000,
     "hash": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "checkpoint": {
+    "enabled": true,
+    "interval": 100,
+    "keep_in_memory": 200,
+    "keep_on_disk": 2,
+    "csv_delimiter": ",",
+    "compression": false
   }
 }

@@ -380,6 +380,21 @@ func (c *Context) GetAllStakes() map[string]uint64 {
 	return stakes
 }
 
+// GetAllNonces retorna todos os nonces no estado atual
+func (c *Context) GetAllNonces() map[string]uint64 {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	nonces := make(map[string]uint64)
+	for key, value := range c.currentState {
+		prefix, address := ParseStateKey(key)
+		if prefix == PrefixNonce && value > 0 {
+			nonces[address] = value
+		}
+	}
+	return nonces
+}
+
 // GetValidators retorna a lista de validadores ativos (endereços com stake > 0)
 func (c *Context) GetValidators() ValidatorList {
 	stakes := c.GetAllStakes()

@@ -10,15 +10,17 @@ import (
 
 // BlockHeader contém os metadados do bloco
 type BlockHeader struct {
-	Version       uint32 `json:"version"`        // Versão do protocolo
-	Height        uint64 `json:"height"`         // Altura do bloco na chain
-	Timestamp     int64  `json:"timestamp"`      // Timestamp Unix
-	PreviousHash  string `json:"previous_hash"`  // Hash do bloco anterior
-	MerkleRoot    string `json:"merkle_root"`    // Raiz da árvore de Merkle das transações
-	ValidatorAddr string `json:"validator_addr"` // Endereço do validador que criou o bloco
-	Signature     string `json:"signature"`      // Assinatura do validador
-	PublicKey     string `json:"public_key"`     // Chave pública do validador
-	Nonce         uint64 `json:"nonce"`          // Nonce (pode ser usado para desempate ou ordenação)
+	Version          uint32 `json:"version"`                    // Versão do protocolo
+	Height           uint64 `json:"height"`                     // Altura do bloco na chain
+	Timestamp        int64  `json:"timestamp"`                  // Timestamp Unix
+	PreviousHash     string `json:"previous_hash"`              // Hash do bloco anterior
+	MerkleRoot       string `json:"merkle_root"`                // Raiz da árvore de Merkle das transações
+	ValidatorAddr    string `json:"validator_addr"`             // Endereço do validador que criou o bloco
+	Signature        string `json:"signature"`                  // Assinatura do validador
+	PublicKey        string `json:"public_key"`                 // Chave pública do validador
+	Nonce            uint64 `json:"nonce"`                      // Nonce (pode ser usado para desempate ou ordenação)
+	CheckpointHash   string `json:"checkpoint_hash,omitempty"`  // Hash do checkpoint (se este bloco marca um checkpoint)
+	CheckpointHeight uint64 `json:"checkpoint_height,omitempty"` // Altura do bloco referente ao checkpoint
 }
 
 // Block representa um bloco na blockchain
