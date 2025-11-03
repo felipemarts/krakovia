@@ -94,7 +94,9 @@ func NewNode(config Config) (*Node, error) {
 	// Inicializar blockchain
 	chain, err := blockchain.NewChain(config.GenesisBlock, chainConfig)
 	if err != nil {
-		db.Close()
+		if closeErr := db.Close(); closeErr != nil {
+			fmt.Printf("Warning: failed to close DB: %v\n", closeErr)
+		}
 		cancel()
 		return nil, fmt.Errorf("failed to create chain: %w", err)
 	}

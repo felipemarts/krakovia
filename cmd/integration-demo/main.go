@@ -67,7 +67,11 @@ func main() {
 	if err := node1.Start(); err != nil {
 		log.Fatal(err)
 	}
-	defer node1.Stop()
+	defer func() {
+		if err := node1.Stop(); err != nil {
+			log.Printf("Error stopping node1: %v", err)
+		}
+	}()
 
 	fmt.Printf("%s[Node 1] ✓ Started%s\n", colorGreen, colorReset)
 	fmt.Printf("  Balance: %d\n", node1.GetBalance())
@@ -121,7 +125,11 @@ func main() {
 	if err := node2.Start(); err != nil {
 		log.Fatal(err)
 	}
-	defer node2.Stop()
+	defer func() {
+		if err := node2.Stop(); err != nil {
+			log.Printf("Error stopping node2: %v", err)
+		}
+	}()
 
 	fmt.Printf("%s[Node 2] ✓ Started%s\n", colorGreen, colorReset)
 	fmt.Printf("  Initial height: %d\n\n", node2.GetChainHeight())
@@ -235,6 +243,10 @@ func createNodeConfig(nodeID, port string, w *wallet.Wallet, genesis *blockchain
 }
 
 func cleanupDirs() {
-	os.RemoveAll(filepath.Join(os.TempDir(), "krakovia_demo_demo_node1"))
-	os.RemoveAll(filepath.Join(os.TempDir(), "krakovia_demo_demo_node2"))
+	if err := os.RemoveAll(filepath.Join(os.TempDir(), "krakovia_demo_demo_node1")); err != nil {
+		log.Printf("Error cleaning up demo_node1: %v", err)
+	}
+	if err := os.RemoveAll(filepath.Join(os.TempDir(), "krakovia_demo_demo_node2")); err != nil {
+		log.Printf("Error cleaning up demo_node2: %v", err)
+	}
 }

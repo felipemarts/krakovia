@@ -17,7 +17,9 @@ import (
 func cleanupTestDirs(t *testing.T, nodeIDs ...string) {
 	for _, id := range nodeIDs {
 		dbPath := filepath.Join(os.TempDir(), "krakovia_test_"+id)
-		os.RemoveAll(dbPath)
+		if err := os.RemoveAll(dbPath); err != nil {
+			t.Logf("Warning: failed to cleanup %s: %v", dbPath, err)
+		}
 	}
 }
 
@@ -97,7 +99,11 @@ func TestNodeIntegration(t *testing.T) {
 	if err := node1.Start(); err != nil {
 		t.Fatalf("Failed to start node1: %v", err)
 	}
-	defer node1.Stop()
+	defer func() {
+		if err := node1.Stop(); err != nil {
+			t.Logf("Error stopping node1: %v", err)
+		}
+	}()
 
 	fmt.Printf("\n[Node 1] Started successfully\n")
 	fmt.Printf("[Node 1] Balance: %d\n", node1.GetBalance())
@@ -152,7 +158,11 @@ func TestNodeIntegration(t *testing.T) {
 	if err := node2.Start(); err != nil {
 		t.Fatalf("Failed to start node2: %v", err)
 	}
-	defer node2.Stop()
+	defer func() {
+		if err := node2.Stop(); err != nil {
+			t.Logf("Error stopping node2: %v", err)
+		}
+	}()
 
 	fmt.Printf("[Node 2] Started successfully\n")
 	fmt.Printf("[Node 2] Initial chain height: %d\n", node2.GetChainHeight())
@@ -276,7 +286,11 @@ func TestThreeNodeConsensus(t *testing.T) {
 		if err := n.Start(); err != nil {
 			t.Fatalf("Failed to start node %d: %v", i+1, err)
 		}
-		defer n.Stop()
+		defer func(node *node.Node, id int) {
+			if err := node.Stop(); err != nil {
+				t.Logf("Error stopping node %d: %v", id, err)
+			}
+		}(n, i+1)
 		nodes[i] = n
 		fmt.Printf("[Node %d] Started\n", i+1)
 		time.Sleep(200 * time.Millisecond) // Delay entre starts (otimizado)
@@ -284,8 +298,12 @@ func TestThreeNodeConsensus(t *testing.T) {
 
 	// Node 1 faz stake e inicia mineração
 	fmt.Printf("\n[Node 1] Staking and starting mining...\n")
-	nodes[0].CreateStakeTransaction(100000, 10)
-	nodes[0].StartMining()
+	if _, err := nodes[0].CreateStakeTransaction(100000, 10); err != nil {
+		t.Fatalf("Failed to create stake transaction: %v", err)
+	}
+	if err := nodes[0].StartMining(); err != nil {
+		t.Fatalf("Failed to start mining: %v", err)
+	}
 
 	// Aguardar blocos e conexões WebRTC (otimizado para 30s timeout)
 	time.Sleep(1 * time.Second)
