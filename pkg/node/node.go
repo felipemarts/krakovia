@@ -639,6 +639,11 @@ func (n *Node) GetChainHeight() uint64 {
 	return n.chain.GetHeight()
 }
 
+// GetLastBlock retorna o último bloco da blockchain
+func (n *Node) GetLastBlock() *blockchain.Block {
+	return n.chain.GetLastBlock()
+}
+
 // GetMempoolSize retorna o número de transações no mempool
 func (n *Node) GetMempoolSize() int {
 	return n.mempool.Size()
