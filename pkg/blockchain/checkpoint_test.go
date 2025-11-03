@@ -185,13 +185,17 @@ func TestSaveAndLoadCheckpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 
 	db, err := leveldb.OpenFile(filepath.Join(tmpDir, "test.db"), nil)
 	if err != nil {
 		t.Fatalf("Failed to open database: %v", err)
 	}
-	defer db.Close()
+	defer func() {
+		_ = db.Close()
+	}()
 
 	// Criar checkpoint
 	accounts := createTestAccounts()
@@ -230,13 +234,17 @@ func TestSaveAndLoadCheckpoint_Compressed(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 
 	db, err := leveldb.OpenFile(filepath.Join(tmpDir, "test.db"), nil)
 	if err != nil {
 		t.Fatalf("Failed to open database: %v", err)
 	}
-	defer db.Close()
+	defer func() {
+		_ = db.Close()
+	}()
 
 	accounts := createTestAccounts()
 	checkpoint, _ := CreateCheckpoint(100, 1234567890, accounts, ",")
@@ -265,13 +273,17 @@ func TestGetLastCheckpointHeight(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 
 	db, err := leveldb.OpenFile(filepath.Join(tmpDir, "test.db"), nil)
 	if err != nil {
 		t.Fatalf("Failed to open database: %v", err)
 	}
-	defer db.Close()
+	defer func() {
+		_ = db.Close()
+	}()
 
 	// Deve retornar 0 se não há checkpoints
 	height, err := GetLastCheckpointHeight(db)
@@ -285,7 +297,9 @@ func TestGetLastCheckpointHeight(t *testing.T) {
 	// Salvar checkpoint
 	accounts := createTestAccounts()
 	checkpoint, _ := CreateCheckpoint(100, 1234567890, accounts, ",")
-	SaveCheckpointToDB(db, checkpoint, false)
+	if err := SaveCheckpointToDB(db, checkpoint, false); err != nil {
+		t.Fatalf("Failed to save checkpoint: %v", err)
+	}
 
 	// Deve retornar 100
 	height, err = GetLastCheckpointHeight(db)
@@ -303,19 +317,25 @@ func TestPruneOldCheckpoints(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 
 	db, err := leveldb.OpenFile(filepath.Join(tmpDir, "test.db"), nil)
 	if err != nil {
 		t.Fatalf("Failed to open database: %v", err)
 	}
-	defer db.Close()
+	defer func() {
+		_ = db.Close()
+	}()
 
 	// Criar 5 checkpoints
 	accounts := createTestAccounts()
 	for i := 0; i < 5; i++ {
 		checkpoint, _ := CreateCheckpoint(uint64(i*100), 1234567890, accounts, ",")
-		SaveCheckpointToDB(db, checkpoint, false)
+		if err := SaveCheckpointToDB(db, checkpoint, false); err != nil {
+			t.Fatalf("Failed to save checkpoint: %v", err)
+		}
 	}
 
 	// Manter apenas últimos 2
@@ -346,18 +366,24 @@ func TestDeleteCheckpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 
 	db, err := leveldb.OpenFile(filepath.Join(tmpDir, "test.db"), nil)
 	if err != nil {
 		t.Fatalf("Failed to open database: %v", err)
 	}
-	defer db.Close()
+	defer func() {
+		_ = db.Close()
+	}()
 
 	// Criar checkpoint
 	accounts := createTestAccounts()
 	checkpoint, _ := CreateCheckpoint(100, 1234567890, accounts, ",")
-	SaveCheckpointToDB(db, checkpoint, false)
+	if err := SaveCheckpointToDB(db, checkpoint, false); err != nil {
+		t.Fatalf("Failed to save checkpoint: %v", err)
+	}
 
 	// Deletar
 	err = DeleteCheckpoint(db, 100)
@@ -378,13 +404,17 @@ func TestSaveAndLoadBlock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 
 	db, err := leveldb.OpenFile(filepath.Join(tmpDir, "test.db"), nil)
 	if err != nil {
 		t.Fatalf("Failed to open database: %v", err)
 	}
-	defer db.Close()
+	defer func() {
+		_ = db.Close()
+	}()
 
 	// Criar bloco simulado
 	block := &Block{
@@ -427,13 +457,17 @@ func TestPruneOldBlocks(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 
 	db, err := leveldb.OpenFile(filepath.Join(tmpDir, "test.db"), nil)
 	if err != nil {
 		t.Fatalf("Failed to open database: %v", err)
 	}
-	defer db.Close()
+	defer func() {
+		_ = db.Close()
+	}()
 
 	// Criar 10 blocos em memória
 	blocks := make(BlockSlice, 10)
@@ -477,13 +511,17 @@ func TestPruneBlocksBeforeCheckpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 
 	db, err := leveldb.OpenFile(filepath.Join(tmpDir, "test.db"), nil)
 	if err != nil {
 		t.Fatalf("Failed to open database: %v", err)
 	}
-	defer db.Close()
+	defer func() {
+		_ = db.Close()
+	}()
 
 	// Criar blocos no disco
 	for i := 0; i < 20; i++ {
@@ -493,15 +531,21 @@ func TestPruneBlocksBeforeCheckpoint(t *testing.T) {
 			},
 			Hash: "hash",
 		}
-		SaveBlockToDB(db, block)
+		if err := SaveBlockToDB(db, block); err != nil {
+			t.Fatalf("Failed to save block: %v", err)
+		}
 	}
 
 	// Criar 2 checkpoints (altura 10 e 15)
 	accounts := createTestAccounts()
 	checkpoint1, _ := CreateCheckpoint(10, 1234567890, accounts, ",")
 	checkpoint2, _ := CreateCheckpoint(15, 1234567891, accounts, ",")
-	SaveCheckpointToDB(db, checkpoint1, false)
-	SaveCheckpointToDB(db, checkpoint2, false)
+	if err := SaveCheckpointToDB(db, checkpoint1, false); err != nil {
+		t.Fatalf("Failed to save checkpoint1: %v", err)
+	}
+	if err := SaveCheckpointToDB(db, checkpoint2, false); err != nil {
+		t.Fatalf("Failed to save checkpoint2: %v", err)
+	}
 
 	// Fazer pruning, mantendo apenas último checkpoint
 	err = PruneBlocksBeforeCheckpoint(db, 15, 1)

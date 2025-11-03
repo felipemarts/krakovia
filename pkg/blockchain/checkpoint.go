@@ -229,7 +229,9 @@ func LoadCheckpointFromDB(db *leveldb.DB, height uint64) (*Checkpoint, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to create gzip reader: %w", err)
 		}
-		defer gzReader.Close()
+		defer func() {
+			_ = gzReader.Close()
+		}()
 
 		decompressed, err := io.ReadAll(gzReader)
 		if err != nil {

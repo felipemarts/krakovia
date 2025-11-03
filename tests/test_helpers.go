@@ -91,14 +91,3 @@ func createTestNodeConfigWithSharedGenesis(t *testing.T, nodeID, signalingURL, t
 	}
 }
 
-// waitForCondition aguarda até que uma condição seja satisfeita ou timeout
-func waitForCondition(condition func() bool, timeout time.Duration, checkInterval time.Duration) bool {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		if condition() {
-			return true
-		}
-		time.Sleep(checkInterval)
-	}
-	return false
-}

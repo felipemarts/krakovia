@@ -89,7 +89,9 @@ func TestCheckpointIntegration(t *testing.T) {
 	stakeData := blockchain.NewStakeData(stakeAmount)
 	stakeDataStr, _ := stakeData.Serialize()
 	stakeTx := blockchain.NewTransaction(wallet1.GetAddress(), wallet1.GetAddress(), stakeAmount, 0, 0, stakeDataStr)
-	stakeTx.Sign(wallet1)
+	if err := stakeTx.Sign(wallet1); err != nil {
+		t.Fatalf("Failed to sign stake transaction: %v", err)
+	}
 
 	// Genesis com 2 transações: coinbase + stake
 	genesisBlock := createGenesisWithStake(genesisTx, stakeTx)
@@ -185,7 +187,9 @@ func TestCheckpointIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to open database: %v", err)
 	}
-	defer db.Close()
+	defer func() {
+		_ = db.Close()
+	}()
 
 	// Verificar último checkpoint
 	lastCheckpointHeight, err := blockchain.GetLastCheckpointHeight(db)
@@ -249,14 +253,20 @@ func TestCheckpointPruning(t *testing.T) {
 			t.Logf("Signaling server error: %v", err)
 		}
 	}()
-	defer server.Stop()
+	defer func() {
+		if err := server.Stop(); err != nil {
+			t.Logf("Warning: error stopping signaling server: %v", err)
+		}
+	}()
 
 	time.Sleep(100 * time.Millisecond)
 
 	// Cleanup
 	nodeID := "pruning_test_node"
 	dbPath := filepath.Join(os.TempDir(), "krakovia_test_"+nodeID)
-	defer os.RemoveAll(dbPath)
+	defer func() {
+		_ = os.RemoveAll(dbPath)
+	}()
 
 	// Criar wallet e genesis com stake
 	wallet1, _ := wallet.NewWallet()
@@ -267,7 +277,9 @@ func TestCheckpointPruning(t *testing.T) {
 	stakeData := blockchain.NewStakeData(stakeAmount)
 	stakeDataStr, _ := stakeData.Serialize()
 	stakeTx := blockchain.NewTransaction(wallet1.GetAddress(), wallet1.GetAddress(), stakeAmount, 0, 0, stakeDataStr)
-	stakeTx.Sign(wallet1)
+	if err := stakeTx.Sign(wallet1); err != nil {
+		t.Fatalf("Failed to sign stake transaction: %v", err)
+	}
 
 	genesisBlock := createGenesisWithStake(genesisTx, stakeTx)
 
@@ -306,10 +318,16 @@ func TestCheckpointPruning(t *testing.T) {
 	if err := node1.Start(); err != nil {
 		t.Fatalf("Failed to start node: %v", err)
 	}
-	defer node1.Stop()
+	defer func() {
+		if err := node1.Stop(); err != nil {
+			t.Logf("Warning: error stopping node1: %v", err)
+		}
+	}()
 
 	// Iniciar mineração (já tem stake do genesis)
-	node1.StartMining()
+	if err := node1.StartMining(); err != nil {
+		t.Fatalf("Failed to start mining: %v", err)
+	}
 
 	// Minerar 30 blocos
 	fmt.Printf("[Pruning Test] Mining 30 blocks...\n")
@@ -362,7 +380,11 @@ func TestCheckpointSync(t *testing.T) {
 			t.Logf("Signaling server error: %v", err)
 		}
 	}()
-	defer server.Stop()
+	defer func() {
+		if err := server.Stop(); err != nil {
+			t.Logf("Warning: error stopping signaling server: %v", err)
+		}
+	}()
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -380,7 +402,9 @@ func TestCheckpointSync(t *testing.T) {
 	stakeData := blockchain.NewStakeData(stakeAmount)
 	stakeDataStr, _ := stakeData.Serialize()
 	stakeTx := blockchain.NewTransaction(wallet1.GetAddress(), wallet1.GetAddress(), stakeAmount, 0, 0, stakeDataStr)
-	stakeTx.Sign(wallet1)
+	if err := stakeTx.Sign(wallet1); err != nil {
+		t.Fatalf("Failed to sign stake transaction: %v", err)
+	}
 
 	genesisBlock := createGenesisWithStake(genesisTx, stakeTx)
 
@@ -420,11 +444,17 @@ func TestCheckpointSync(t *testing.T) {
 	if err := node1.Start(); err != nil {
 		t.Fatalf("Failed to start node1: %v", err)
 	}
-	defer node1.Stop()
+	defer func() {
+		if err := node1.Stop(); err != nil {
+			t.Logf("Warning: error stopping node1: %v", err)
+		}
+	}()
 
 	// Minerar alguns blocos no node1 (já tem stake do genesis)
 	fmt.Printf("[Node1] Starting mining...\n")
-	node1.StartMining()
+	if err := node1.StartMining(); err != nil {
+		t.Fatalf("Failed to start mining: %v", err)
+	}
 
 	// Aguardar 10 blocos
 	time.Sleep(3 * time.Second)
@@ -469,7 +499,11 @@ func TestCheckpointSync(t *testing.T) {
 	if err := node2.Start(); err != nil {
 		t.Fatalf("Failed to start node2: %v", err)
 	}
-	defer node2.Stop()
+	defer func() {
+		if err := node2.Stop(); err != nil {
+			t.Logf("Warning: error stopping node2: %v", err)
+		}
+	}()
 
 	// Aguardar sincronização com polling
 	fmt.Printf("[Sync] Waiting for synchronization...\n")
@@ -540,7 +574,9 @@ func TestCheckpointHashValidation(t *testing.T) {
 	stakeData := blockchain.NewStakeData(stakeAmount)
 	stakeDataStr, _ := stakeData.Serialize()
 	stakeTx := blockchain.NewTransaction(wallet1.GetAddress(), wallet1.GetAddress(), stakeAmount, 0, 0, stakeDataStr)
-	stakeTx.Sign(wallet1)
+	if err := stakeTx.Sign(wallet1); err != nil {
+		t.Fatalf("Failed to sign stake transaction: %v", err)
+	}
 
 	// Criar bloco genesis
 	genesisBlock := createGenesisWithStake(coinbaseTx, stakeTx)
@@ -581,11 +617,17 @@ func TestCheckpointHashValidation(t *testing.T) {
 	if err := testNode.Start(); err != nil {
 		t.Fatalf("Failed to start node: %v", err)
 	}
-	defer testNode.Stop()
+	defer func() {
+		if err := testNode.Stop(); err != nil {
+			t.Logf("Warning: error stopping testNode: %v", err)
+		}
+	}()
 
 	// Minerar até criar pelo menos um checkpoint
 	fmt.Printf("[Validation Test] Mining blocks to create checkpoint...\n")
-	testNode.StartMining()
+	if err := testNode.StartMining(); err != nil {
+		t.Fatalf("Failed to start mining: %v", err)
+	}
 
 	// Aguardar pelo menos 10 blocos (2 checkpoints)
 	for i := 0; i < 80; i++ {
