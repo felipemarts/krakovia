@@ -143,6 +143,11 @@ func NewNode(config Config) (*Node, error) {
 		checkpointConfig:  config.CheckpointConfig,
 	}
 
+	// Carregar blockchain existente do disco
+	if err := node.loadChainFromDisk(); err != nil {
+		fmt.Printf("[%s] Warning: failed to load chain from disk: %v\n", config.ID, err)
+	}
+
 	// Carregar último checkpoint do disco (se existir)
 	if config.CheckpointConfig != nil && config.CheckpointConfig.Enabled {
 		node.loadLastCheckpoint()
@@ -152,6 +157,12 @@ func NewNode(config Config) (*Node, error) {
 	miner.SetOnBlockCreated(func(block *blockchain.Block) {
 		// Adicionar checkpoint hash ao bloco se disponível
 		node.addCheckpointHashToBlock(block)
+		// Salvar bloco no disco
+		if err := blockchain.SaveBlockToDB(node.db, block); err != nil {
+			fmt.Printf("[%s] ⚠️  Warning: failed to save mined block %d to disk: %v\n", node.ID, block.Header.Height, err)
+		} else {
+			fmt.Printf("[%s] 💾 Mined block %d saved to disk successfully\n", node.ID, block.Header.Height)
+		}
 		// Tentar criar checkpoint se necessário
 		node.tryCreateCheckpoint(block.Header.Height)
 		// Broadcast do bloco
@@ -402,6 +413,13 @@ func (n *Node) handleBlockMessage(peerID string, data []byte) {
 
 	fmt.Printf("[%s] Block %d added to chain successfully\n", n.ID, block.Header.Height)
 
+	// Salvar bloco no disco
+	if err := blockchain.SaveBlockToDB(n.db, block); err != nil {
+		fmt.Printf("[%s] ⚠️  Warning: failed to save block %d to disk: %v\n", n.ID, block.Header.Height, err)
+	} else {
+		fmt.Printf("[%s] 💾 Block %d saved to disk successfully\n", n.ID, block.Header.Height)
+	}
+
 	// Tentar criar checkpoint se necessário
 	n.tryCreateCheckpoint(block.Header.Height)
 
@@ -480,10 +498,12 @@ func (n *Node) handleSyncRequest(peerID string, data []byte) {
 		return
 	}
 
-	fmt.Printf("[%s] Received sync request from %s (from height %d)\n", n.ID, peerID, req.FromHeight)
+	fmt.Printf("[%s] 📥 Received sync request from %s (from height %d)\n", n.ID, peerID, req.FromHeight)
 
 	// Pega blocos a partir da altura solicitada
 	currentHeight := n.chain.GetHeight()
+	fmt.Printf("[%s] 📊 Current height: %d, peer requested from: %d\n", n.ID, currentHeight, req.FromHeight)
+
 	if req.FromHeight > currentHeight {
 		fmt.Printf("[%s] Peer %s is ahead, nothing to send\n", n.ID, peerID)
 		return
@@ -540,10 +560,12 @@ func (n *Node) handleSyncRequest(peerID string, data []byte) {
 
 	if peer != nil {
 		if err := peer.SendMessage("sync_response", responseData); err != nil {
-			fmt.Printf("[%s] Failed to send sync response to %s: %v\n", n.ID, peerID, err)
+			fmt.Printf("[%s] ❌ Failed to send sync response to %s: %v\n", n.ID, peerID, err)
 		} else {
-			fmt.Printf("[%s] Sent %d blocks to %s (height %d-%d)\n", n.ID, len(blocks), peerID, req.FromHeight, toHeight)
+			fmt.Printf("[%s] ✅ Sent %d blocks to %s (height %d-%d)\n", n.ID, len(blocks), peerID, req.FromHeight, toHeight)
 		}
+	} else {
+		fmt.Printf("[%s] ❌ Peer %s not found, cannot send sync response\n", n.ID, peerID)
 	}
 }
 
@@ -576,6 +598,11 @@ func (n *Node) handleSyncResponse(peerID string, data []byte) {
 		}
 
 		fmt.Printf("[%s] ✅ Successfully added block %d\n", n.ID, block.Header.Height)
+
+		// Salvar bloco no disco
+		if err := blockchain.SaveBlockToDB(n.db, block); err != nil {
+			fmt.Printf("[%s] Warning: failed to save synced block %d to disk: %v\n", n.ID, block.Header.Height, err)
+		}
 
 		// Remove transações do mempool
 		txIDs := make([]string, 0, len(block.Transactions))
@@ -852,6 +879,11 @@ func (n *Node) processSyncedBlocks(blocks []*blockchain.Block) {
 			break
 		}
 		fmt.Printf("[%s] Successfully added synced block %d\n", n.ID, block.Header.Height)
+
+		// Salvar bloco no disco
+		if err := blockchain.SaveBlockToDB(n.db, block); err != nil {
+			fmt.Printf("[%s] Warning: failed to save synced block %d to disk: %v\n", n.ID, block.Header.Height, err)
+		}
 
 		// Tentar criar checkpoint se necessário
 		n.tryCreateCheckpoint(block.Header.Height)
@@ -1406,4 +1438,50 @@ func (n *Node) loadLastCheckpoint() {
 
 	fmt.Printf("[%s] Loaded last checkpoint from disk: height=%d, hash=%s\n",
 		n.ID, checkpoint.Height, checkpoint.Hash[:16])
+}
+
+// loadChainFromDisk carrega a blockchain salva no disco
+func (n *Node) loadChainFromDisk() error {
+	// Obter altura da chain salva
+	chainHeightData, err := n.db.Get([]byte("metadata-chain-height"), nil)
+	if err != nil {
+		// Não há chain salva, isso é normal na primeira execução
+		return nil
+	}
+
+	var savedHeight uint64
+	if _, err := fmt.Sscanf(string(chainHeightData), "%d", &savedHeight); err != nil {
+		return fmt.Errorf("failed to parse saved chain height: %w", err)
+	}
+
+	currentHeight := n.chain.GetHeight()
+
+	// Se a altura salva é menor ou igual à atual, não precisa carregar
+	if savedHeight <= currentHeight {
+		fmt.Printf("[%s] Chain already up to date (saved: %d, current: %d)\n", n.ID, savedHeight, currentHeight)
+		return nil
+	}
+
+	fmt.Printf("[%s] Loading chain from disk: saved height=%d, current=%d\n", n.ID, savedHeight, currentHeight)
+
+	// Carregar blocos do disco a partir da próxima altura
+	blocksLoaded := 0
+	for height := currentHeight + 1; height <= savedHeight; height++ {
+		block, err := blockchain.LoadBlockFromDB(n.db, height)
+		if err != nil {
+			return fmt.Errorf("failed to load block at height %d: %w", height, err)
+		}
+
+		// Adicionar bloco à chain
+		if err := n.chain.AddBlock(block); err != nil {
+			return fmt.Errorf("failed to add block %d to chain: %w", height, err)
+		}
+
+		blocksLoaded++
+	}
+
+	fmt.Printf("[%s] Successfully loaded %d blocks from disk. New height: %d\n",
+		n.ID, blocksLoaded, n.chain.GetHeight())
+
+	return nil
 }
