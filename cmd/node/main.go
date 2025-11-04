@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/krakovia/blockchain/internal/config"
 	"github.com/krakovia/blockchain/pkg/blockchain"
@@ -17,6 +18,7 @@ import (
 
 func main() {
 	configPath := flag.String("config", "", "Path to JSON config file (required)")
+	autoMine := flag.Bool("mine", false, "Start mining automatically")
 	flag.Parse()
 
 	if *configPath == "" {
@@ -51,19 +53,21 @@ func main() {
 	// Criar bloco gênesis
 	var genesisBlock *blockchain.Block
 	if cfg.Genesis != nil {
-		// Criar transação coinbase para o genesis
-		genesisTx := blockchain.NewCoinbaseTransaction(
+		// Criar transação coinbase para o genesis com timestamp fixo
+		genesisTx := blockchain.NewCoinbaseTransactionWithTimestamp(
 			cfg.Genesis.RecipientAddr,
 			cfg.Genesis.Amount,
 			0, // block height 0
+			cfg.Genesis.Timestamp,
 		)
 
-		// Criar genesis block
-		genesisBlock = blockchain.GenesisBlock(genesisTx)
+		// Criar genesis block com timestamp fixo do config
+		genesisBlock = blockchain.GenesisBlockWithTimestamp(genesisTx, cfg.Genesis.Timestamp)
 
 		fmt.Printf("Genesis block created: %s\n", genesisBlock.Hash[:16])
 		fmt.Printf("Genesis recipient: %s\n", cfg.Genesis.RecipientAddr)
 		fmt.Printf("Genesis amount: %d\n", cfg.Genesis.Amount)
+		fmt.Printf("Genesis timestamp: %d\n", cfg.Genesis.Timestamp)
 	} else {
 		// Criar genesis padrão se não fornecido
 		genesisTx := blockchain.NewCoinbaseTransaction(
@@ -78,6 +82,22 @@ func main() {
 	// Configuração da blockchain
 	chainConfig := blockchain.DefaultChainConfig()
 
+	// Sobrescrever com configurações do genesis se fornecidas
+	if cfg.Genesis != nil {
+		if cfg.Genesis.BlockTime > 0 {
+			chainConfig.BlockTime = time.Duration(cfg.Genesis.BlockTime) * time.Millisecond
+		}
+		if cfg.Genesis.MaxBlockSize > 0 {
+			chainConfig.MaxBlockSize = cfg.Genesis.MaxBlockSize
+		}
+		if cfg.Genesis.BlockReward > 0 {
+			chainConfig.BlockReward = cfg.Genesis.BlockReward
+		}
+		if cfg.Genesis.MinValidatorStake > 0 {
+			chainConfig.MinValidatorStake = cfg.Genesis.MinValidatorStake
+		}
+	}
+
 	// Configurar nó
 	nodeConfig := node.Config{
 		ID:                cfg.ID,
@@ -90,6 +110,16 @@ func main() {
 		Wallet:            w,
 		GenesisBlock:      genesisBlock,
 		ChainConfig:       chainConfig,
+		CheckpointConfig:  cfg.Checkpoint,
+		APIConfig:         cfg.API,
+	}
+
+	// Adicionar stake inicial se fornecido
+	if cfg.Genesis != nil && cfg.Genesis.InitialStake > 0 {
+		nodeConfig.InitialStake = cfg.Genesis.InitialStake
+		nodeConfig.InitialStakeAddr = cfg.Genesis.RecipientAddr
+		fmt.Printf("Genesis initial stake configured: %d tokens for %s\n",
+			cfg.Genesis.InitialStake, cfg.Genesis.RecipientAddr[:8])
 	}
 
 	// Criar nó
@@ -108,6 +138,9 @@ func main() {
 	fmt.Printf("Address: %s\n", cfg.Address)
 	fmt.Printf("Database: %s\n", cfg.DBPath)
 	fmt.Printf("Signaling: %s\n", cfg.SignalingServer)
+	if cfg.API != nil && cfg.API.Enabled {
+		fmt.Printf("HTTP API: http://localhost%s\n", cfg.API.Address)
+	}
 	fmt.Printf("=================================\n")
 
 	// Mostrar informações da blockchain
@@ -117,6 +150,16 @@ func main() {
 	fmt.Printf("Chain Height: %d\n", n.GetChainHeight())
 	fmt.Printf("Genesis Hash: %s\n", genesisBlock.Hash[:16]+"...")
 	fmt.Printf("=======================\n\n")
+
+	// Iniciar mineração automaticamente se solicitado
+	if *autoMine {
+		fmt.Println("Starting mining automatically...")
+		if err := n.StartMining(); err != nil {
+			log.Printf("Failed to start mining: %v", err)
+		} else {
+			fmt.Println("✅ Mining started!")
+		}
+	}
 
 	// Aguardar sinal de interrupção
 	sigChan := make(chan os.Signal, 1)

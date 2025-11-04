@@ -282,8 +282,13 @@ func (b *Block) String() string {
 	)
 }
 
-// GenesisBlock cria o bloco gênesis
+// GenesisBlock cria o bloco gênesis com timestamp atual
 func GenesisBlock(genesisTransaction *Transaction) *Block {
+	return GenesisBlockWithTimestamp(genesisTransaction, time.Now().Unix())
+}
+
+// GenesisBlockWithTimestamp cria o bloco gênesis com timestamp específico
+func GenesisBlockWithTimestamp(genesisTransaction *Transaction, timestamp int64) *Block {
 	if genesisTransaction == nil {
 		return nil
 	}
@@ -295,7 +300,7 @@ func GenesisBlock(genesisTransaction *Transaction) *Block {
 		Header: BlockHeader{
 			Version:       1,
 			Height:        0,
-			Timestamp:     time.Now().Unix(),
+			Timestamp:     timestamp,
 			PreviousHash:  "",
 			MerkleRoot:    merkleRoot,
 			ValidatorAddr: genesisTransaction.To, // O endereço do destinatário é o validador inicial

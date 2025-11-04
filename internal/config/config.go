@@ -11,6 +11,7 @@ type GenesisBlock struct {
 	Timestamp         int64  `json:"timestamp"`           // Timestamp do bloco gênesis
 	RecipientAddr     string `json:"recipient_addr"`      // Endereço que receberá a recompensa inicial
 	Amount            uint64 `json:"amount"`              // Quantidade de tokens iniciais
+	InitialStake      uint64 `json:"initial_stake"`       // Stake inicial do recipient (0 = sem stake inicial)
 	Hash              string `json:"hash"`                // Hash esperado do bloco gênesis
 	BlockTime         int64  `json:"block_time"`          // Tempo entre blocos em milissegundos
 	MaxBlockSize      int    `json:"max_block_size"`      // Máximo de transações por bloco
@@ -35,6 +36,14 @@ type CheckpointConfig struct {
 	Compression   bool `json:"compression"`      // Comprimir CSV no LevelDB
 }
 
+// APIConfig representa a configuração do servidor HTTP da API
+type APIConfig struct {
+	Enabled  bool   `json:"enabled"`  // Habilita/desabilita a API HTTP
+	Address  string `json:"address"`  // Endereço do servidor (ex: :8080)
+	Username string `json:"username"` // Usuário para autenticação
+	Password string `json:"password"` // Senha para autenticação
+}
+
 // NodeConfig representa a configuração de um nó
 type NodeConfig struct {
 	ID                string            `json:"id"`
@@ -47,6 +56,7 @@ type NodeConfig struct {
 	Wallet            WalletConfig      `json:"wallet"`             // Configuração da carteira
 	Genesis           *GenesisBlock     `json:"genesis,omitempty"`  // Configuração do bloco gênesis (opcional)
 	Checkpoint        *CheckpointConfig `json:"checkpoint,omitempty"` // Configuração de checkpoints (opcional)
+	API               *APIConfig        `json:"api,omitempty"`      // Configuração da API HTTP (opcional)
 }
 
 // LoadNodeConfig carrega a configuração de um arquivo JSON
@@ -160,6 +170,22 @@ func LoadNodeConfig(filepath string) (*NodeConfig, error) {
 			}
 			if config.Checkpoint.KeepOnDisk < 1 {
 				return nil, fmt.Errorf("keep_on_disk must be at least 1")
+			}
+		}
+	}
+
+	// Configuração da API (valores padrão e validações)
+	if config.API != nil {
+		if config.API.Enabled {
+			// Valores padrão
+			if config.API.Address == "" {
+				config.API.Address = ":8080" // Padrão: porta 8080
+			}
+			if config.API.Username == "" {
+				return nil, fmt.Errorf("API username is required when API is enabled")
+			}
+			if config.API.Password == "" {
+				return nil, fmt.Errorf("API password is required when API is enabled")
 			}
 		}
 	}
