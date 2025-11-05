@@ -108,6 +108,22 @@ func (c *Context) GetNonce(address string) uint64 {
 	return c.GetState(key)
 }
 
+// SetBalance define o saldo de um endereço diretamente (use com cuidado!)
+func (c *Context) SetBalance(address string, amount uint64) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	key := MakeBalanceKey(address)
+	c.currentState[key] = amount
+}
+
+// SetStake define o stake de um endereço diretamente (use com cuidado!)
+func (c *Context) SetStake(address string, amount uint64) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	key := MakeStakeKey(address)
+	c.currentState[key] = amount
+}
+
 // GetState retorna um valor do estado, percorrendo a cadeia de blocos se necessário
 func (c *Context) GetState(key StateKey) uint64 {
 	c.mu.RLock()

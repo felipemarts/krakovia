@@ -225,12 +225,17 @@ func (tx *Transaction) IsCoinbase() bool {
 
 // NewCoinbaseTransaction cria uma transação coinbase (recompensa de bloco)
 func NewCoinbaseTransaction(to string, amount uint64, blockHeight uint64) *Transaction {
+	return NewCoinbaseTransactionWithTimestamp(to, amount, blockHeight, time.Now().Unix())
+}
+
+// NewCoinbaseTransactionWithTimestamp cria uma transação coinbase com timestamp específico
+func NewCoinbaseTransactionWithTimestamp(to string, amount uint64, blockHeight uint64, timestamp int64) *Transaction {
 	tx := &Transaction{
 		From:      "", // Transação coinbase não tem remetente
 		To:        to,
 		Amount:    amount,
 		Fee:       0,
-		Timestamp: time.Now().Unix(),
+		Timestamp: timestamp,
 		Nonce:     blockHeight, // Usa a altura do bloco como nonce
 		Data:      fmt.Sprintf("Coinbase reward for block %d", blockHeight),
 	}

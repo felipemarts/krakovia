@@ -46,6 +46,11 @@ type Chain struct {
 
 // NewChain cria uma nova blockchain com bloco gênesis
 func NewChain(genesisBlock *Block, config ChainConfig) (*Chain, error) {
+	return NewChainWithStake(genesisBlock, config, "", 0)
+}
+
+// NewChainWithStake cria uma nova blockchain com bloco gênesis e stake inicial opcional
+func NewChainWithStake(genesisBlock *Block, config ChainConfig, stakeAddr string, stakeAmount uint64) (*Chain, error) {
 	if genesisBlock == nil {
 		return nil, fmt.Errorf("genesis block is required")
 	}
@@ -63,6 +68,21 @@ func NewChain(genesisBlock *Block, config ChainConfig) (*Chain, error) {
 	ctx, err := NewContextWithGenesis(genesisBlock)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create context: %w", err)
+	}
+
+	// Aplica stake inicial se fornecido
+	if stakeAddr != "" && stakeAmount > 0 {
+		// Verificar se o endereço tem saldo suficiente
+		balance := ctx.GetBalance(stakeAddr)
+		if balance < stakeAmount {
+			return nil, fmt.Errorf("insufficient balance for initial stake: have %d, need %d", balance, stakeAmount)
+		}
+
+		// Aplicar stake inicial (subtrai do saldo e adiciona ao stake)
+		ctx.SetBalance(stakeAddr, balance-stakeAmount)
+		ctx.SetStake(stakeAddr, stakeAmount)
+
+		fmt.Printf("Initial stake applied: %s -> %d tokens staked\n", stakeAddr[:8], stakeAmount)
 	}
 
 	chain := &Chain{
