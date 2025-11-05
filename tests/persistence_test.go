@@ -226,6 +226,8 @@ func TestBlockchainPersistence(t *testing.T) {
 // TestBlockchainPersistenceWithMultipleRestarts testa múltiplas reinicializações
 func TestBlockchainPersistenceWithMultipleRestarts(t *testing.T) {
 	dbPath := "./test-data/test_multiple_restarts_db"
+	// Cleanup antes de começar para evitar conflitos
+	_ = os.RemoveAll(dbPath)
 	defer func() { _ = os.RemoveAll(dbPath) }()
 
 	w, err := wallet.NewWallet()
@@ -308,12 +310,13 @@ func TestBlockchainPersistenceWithMultipleRestarts(t *testing.T) {
 			time.Sleep(300 * time.Millisecond)
 		}
 
-		// Parar testNode
+		// Parar testNode e aguardar cleanup completo
 		if err := testNode.Stop(); err != nil {
 			t.Fatalf("Failed to stop node on restart %d: %v", restart+1, err)
 		}
 
-		time.Sleep(500 * time.Millisecond)
+		// Tempo maior de espera para garantir cleanup completo no CI
+		time.Sleep(1 * time.Second)
 	}
 
 	t.Logf("✓ Successfully completed %d restarts with %d total blocks mined!", restarts, totalBlocksMined)
