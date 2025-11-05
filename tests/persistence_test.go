@@ -292,6 +292,15 @@ func TestBlockchainPersistenceWithMultipleRestarts(t *testing.T) {
 
 		// Minerar alguns blocos
 		for i := 0; i < blocksPerRestart; i++ {
+			// Aguardar o BlockTime antes de tentar minerar para evitar "too soon to mine"
+			if i == 0 && restart == 0 {
+				// Primeiro bloco do primeiro restart precisa aguardar um pouco mais
+				time.Sleep(300 * time.Millisecond)
+			} else {
+				// Aguardar o BlockTime configurado
+				time.Sleep(250 * time.Millisecond)
+			}
+
 			block, err := testNode.GetMiner().TryMineBlock()
 			if err != nil {
 				t.Fatalf("Restart %d: Failed to mine block: %v", restart+1, err)
@@ -307,7 +316,6 @@ func TestBlockchainPersistenceWithMultipleRestarts(t *testing.T) {
 
 			totalBlocksMined++
 			t.Logf("Restart %d: Mined block %d (height: %d)", restart+1, i+1, block.Header.Height)
-			time.Sleep(300 * time.Millisecond)
 		}
 
 		// Parar testNode e aguardar cleanup completo
