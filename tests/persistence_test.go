@@ -78,6 +78,13 @@ func TestBlockchainPersistence(t *testing.T) {
 	// Minerar alguns blocos
 	t.Log("Mining 5 blocks...")
 	for i := 0; i < 5; i++ {
+		// Aguardar o BlockTime antes de tentar minerar para evitar "too soon to mine"
+		if i == 0 {
+			time.Sleep(300 * time.Millisecond) // Primeiro bloco precisa aguardar um pouco mais
+		} else {
+			time.Sleep(250 * time.Millisecond) // Aguardar o BlockTime configurado
+		}
+
 		block, err := node1.GetMiner().TryMineBlock()
 		if err != nil {
 			t.Fatalf("Failed to mine block %d: %v", i+1, err)
@@ -94,7 +101,6 @@ func TestBlockchainPersistence(t *testing.T) {
 		}
 
 		t.Logf("Mined and saved block %d (height: %d)", i+1, block.Header.Height)
-		time.Sleep(300 * time.Millisecond) // Aguardar tempo mínimo entre blocos
 	}
 
 	// Verificar altura após mineração
@@ -195,6 +201,13 @@ func TestBlockchainPersistence(t *testing.T) {
 	// Minerar mais blocos no node restaurado
 	t.Log("Mining 3 more blocks on restored node...")
 	for i := 0; i < 3; i++ {
+		// Aguardar o BlockTime antes de tentar minerar
+		if i == 0 {
+			time.Sleep(300 * time.Millisecond) // Primeiro bloco após restart
+		} else {
+			time.Sleep(250 * time.Millisecond)
+		}
+
 		block, err := node2.GetMiner().TryMineBlock()
 		if err != nil {
 			t.Fatalf("Failed to mine block on restored node: %v", err)
@@ -209,7 +222,6 @@ func TestBlockchainPersistence(t *testing.T) {
 		}
 
 		t.Logf("Mined block %d on restored node (height: %d)", i+1, block.Header.Height)
-		time.Sleep(300 * time.Millisecond)
 	}
 
 	// Verificar altura final
