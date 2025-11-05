@@ -1124,6 +1124,21 @@ func (n *Node) GetWalletAddress() string {
 	return n.wallet.GetAddress()
 }
 
+// GetMiner retorna o minerador do nó
+func (n *Node) GetMiner() *blockchain.Miner {
+	return n.miner
+}
+
+// GetChain retorna a blockchain do nó
+func (n *Node) GetChain() *blockchain.Chain {
+	return n.chain
+}
+
+// GetDB retorna o banco de dados do nó
+func (n *Node) GetDB() *leveldb.DB {
+	return n.db
+}
+
 // PrintStats imprime estatísticas do nó
 func (n *Node) PrintStats() {
 	fmt.Printf("\n=== Node %s Stats ===\n", n.ID)

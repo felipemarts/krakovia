@@ -1,4 +1,4 @@
-package node
+package tests
 
 import (
 	"os"
@@ -7,6 +7,7 @@ import (
 
 	"github.com/krakovia/blockchain/internal/config"
 	"github.com/krakovia/blockchain/pkg/blockchain"
+	"github.com/krakovia/blockchain/pkg/node"
 	"github.com/krakovia/blockchain/pkg/wallet"
 	"github.com/syndtr/goleveldb/leveldb"
 )
@@ -15,7 +16,7 @@ import (
 func TestBlockchainPersistence(t *testing.T) {
 	// Criar diretório temporário para o teste
 	dbPath := "./test_persistence_db"
-	defer os.RemoveAll(dbPath)
+	defer func() { _ = os.RemoveAll(dbPath) }()
 
 	// Criar wallet de teste
 	w, err := wallet.NewWallet()
@@ -48,7 +49,7 @@ func TestBlockchainPersistence(t *testing.T) {
 	}
 
 	// Criar primeiro node
-	nodeConfig1 := Config{
+	nodeConfig1 := node.Config{
 		ID:               "test-node-1",
 		Address:          ":9999",
 		DBPath:           dbPath,
@@ -63,7 +64,7 @@ func TestBlockchainPersistence(t *testing.T) {
 		InitialStake:     1000,
 	}
 
-	node1, err := NewNode(nodeConfig1)
+	node1, err := node.NewNode(nodeConfig1)
 	if err != nil {
 		t.Fatalf("Failed to create first node: %v", err)
 	}
@@ -77,18 +78,18 @@ func TestBlockchainPersistence(t *testing.T) {
 	// Minerar alguns blocos
 	t.Log("Mining 5 blocks...")
 	for i := 0; i < 5; i++ {
-		block, err := node1.miner.TryMineBlock()
+		block, err := node1.GetMiner().TryMineBlock()
 		if err != nil {
 			t.Fatalf("Failed to mine block %d: %v", i+1, err)
 		}
 
 		// Adicionar bloco à chain
-		if err := node1.chain.AddBlock(block); err != nil {
+		if err := node1.GetChain().AddBlock(block); err != nil {
 			t.Fatalf("Failed to add block %d to chain: %v", i+1, err)
 		}
 
 		// Salvar bloco no disco (simular o que acontece no callback OnBlockCreated)
-		if err := blockchain.SaveBlockToDB(node1.db, block); err != nil {
+		if err := blockchain.SaveBlockToDB(node1.GetDB(), block); err != nil {
 			t.Fatalf("Failed to save block %d to disk: %v", i+1, err)
 		}
 
@@ -139,14 +140,14 @@ func TestBlockchainPersistence(t *testing.T) {
 			t.Logf("Successfully loaded block %d from DB (hash: %s)", height, block.Hash[:8])
 		}
 	}
-	db.Close()
+	_ = db.Close()
 
 	// Aguardar um pouco
 	time.Sleep(500 * time.Millisecond)
 
 	// Criar segundo node com mesma configuração (simular reinicialização)
 	t.Log("Creating second node (simulating restart)...")
-	nodeConfig2 := Config{
+	nodeConfig2 := node.Config{
 		ID:               "test-node-2",
 		Address:          ":9998",
 		DBPath:           dbPath,
@@ -161,11 +162,11 @@ func TestBlockchainPersistence(t *testing.T) {
 		InitialStake:     1000,
 	}
 
-	node2, err := NewNode(nodeConfig2)
+	node2, err := node.NewNode(nodeConfig2)
 	if err != nil {
 		t.Fatalf("Failed to create second node: %v", err)
 	}
-	defer node2.Stop()
+	defer func() { _ = node2.Stop() }()
 
 	// Verificar se a altura foi restaurada
 	heightAfterRestart := node2.GetChainHeight()
@@ -183,7 +184,7 @@ func TestBlockchainPersistence(t *testing.T) {
 
 	// Verificar se os blocos estão acessíveis
 	for height := uint64(1); height <= expectedHeight; height++ {
-		block, exists := node2.chain.GetBlockByHeight(height)
+		block, exists := node2.GetChain().GetBlockByHeight(height)
 		if !exists {
 			t.Errorf("Block at height %d not found in chain after restart", height)
 		} else {
@@ -194,16 +195,16 @@ func TestBlockchainPersistence(t *testing.T) {
 	// Minerar mais blocos no node restaurado
 	t.Log("Mining 3 more blocks on restored node...")
 	for i := 0; i < 3; i++ {
-		block, err := node2.miner.TryMineBlock()
+		block, err := node2.GetMiner().TryMineBlock()
 		if err != nil {
 			t.Fatalf("Failed to mine block on restored node: %v", err)
 		}
 
-		if err := node2.chain.AddBlock(block); err != nil {
+		if err := node2.GetChain().AddBlock(block); err != nil {
 			t.Fatalf("Failed to add block to restored chain: %v", err)
 		}
 
-		if err := blockchain.SaveBlockToDB(node2.db, block); err != nil {
+		if err := blockchain.SaveBlockToDB(node2.GetDB(), block); err != nil {
 			t.Fatalf("Failed to save block to disk on restored node: %v", err)
 		}
 
@@ -224,8 +225,8 @@ func TestBlockchainPersistence(t *testing.T) {
 
 // TestBlockchainPersistenceWithMultipleRestarts testa múltiplas reinicializações
 func TestBlockchainPersistenceWithMultipleRestarts(t *testing.T) {
-	dbPath := "./test_multiple_restarts_db"
-	defer os.RemoveAll(dbPath)
+	dbPath := "./test-data/test_multiple_restarts_db"
+	defer func() { _ = os.RemoveAll(dbPath) }()
 
 	w, err := wallet.NewWallet()
 	if err != nil {
@@ -259,7 +260,7 @@ func TestBlockchainPersistenceWithMultipleRestarts(t *testing.T) {
 	for restart := 0; restart < restarts; restart++ {
 		t.Logf("=== Restart %d/%d ===", restart+1, restarts)
 
-		nodeConfig := Config{
+		nodeConfig := node.Config{
 			ID:               "test-node",
 			Address:          ":9997",
 			DBPath:           dbPath,
@@ -274,14 +275,14 @@ func TestBlockchainPersistenceWithMultipleRestarts(t *testing.T) {
 			InitialStake:     1000,
 		}
 
-		node, err := NewNode(nodeConfig)
+		testNode, err := node.NewNode(nodeConfig)
 		if err != nil {
 			t.Fatalf("Failed to create node on restart %d: %v", restart+1, err)
 		}
 
 		// Verificar altura esperada
 		expectedHeight := uint64(totalBlocksMined)
-		currentHeight := node.GetChainHeight()
+		currentHeight := testNode.GetChainHeight()
 		if currentHeight != expectedHeight {
 			t.Errorf("Restart %d: Expected height %d, got %d", restart+1, expectedHeight, currentHeight)
 		}
@@ -289,16 +290,16 @@ func TestBlockchainPersistenceWithMultipleRestarts(t *testing.T) {
 
 		// Minerar alguns blocos
 		for i := 0; i < blocksPerRestart; i++ {
-			block, err := node.miner.TryMineBlock()
+			block, err := testNode.GetMiner().TryMineBlock()
 			if err != nil {
 				t.Fatalf("Restart %d: Failed to mine block: %v", restart+1, err)
 			}
 
-			if err := node.chain.AddBlock(block); err != nil {
+			if err := testNode.GetChain().AddBlock(block); err != nil {
 				t.Fatalf("Restart %d: Failed to add block: %v", restart+1, err)
 			}
 
-			if err := blockchain.SaveBlockToDB(node.db, block); err != nil {
+			if err := blockchain.SaveBlockToDB(testNode.GetDB(), block); err != nil {
 				t.Fatalf("Restart %d: Failed to save block: %v", restart+1, err)
 			}
 
@@ -307,8 +308,8 @@ func TestBlockchainPersistenceWithMultipleRestarts(t *testing.T) {
 			time.Sleep(300 * time.Millisecond)
 		}
 
-		// Parar node
-		if err := node.Stop(); err != nil {
+		// Parar testNode
+		if err := testNode.Stop(); err != nil {
 			t.Fatalf("Failed to stop node on restart %d: %v", restart+1, err)
 		}
 
@@ -321,7 +322,7 @@ func TestBlockchainPersistenceWithMultipleRestarts(t *testing.T) {
 // TestEmptyDatabaseLoad testa o carregamento quando o banco de dados está vazio
 func TestEmptyDatabaseLoad(t *testing.T) {
 	dbPath := "./test_empty_db"
-	defer os.RemoveAll(dbPath)
+	defer func() { _ = os.RemoveAll(dbPath) }()
 
 	w, err := wallet.NewWallet()
 	if err != nil {
@@ -333,7 +334,7 @@ func TestEmptyDatabaseLoad(t *testing.T) {
 
 	chainConfig := blockchain.DefaultChainConfig()
 
-	nodeConfig := Config{
+	nodeConfig := node.Config{
 		ID:              "test-node",
 		Address:         ":9996",
 		DBPath:          dbPath,
@@ -345,14 +346,14 @@ func TestEmptyDatabaseLoad(t *testing.T) {
 		ChainConfig:     chainConfig,
 	}
 
-	node, err := NewNode(nodeConfig)
+	testNode, err := node.NewNode(nodeConfig)
 	if err != nil {
 		t.Fatalf("Failed to create node with empty DB: %v", err)
 	}
-	defer node.Stop()
+	defer func() { _ = testNode.Stop() }()
 
 	// Deve começar com altura 0 (apenas genesis)
-	height := node.GetChainHeight()
+	height := testNode.GetChainHeight()
 	if height != 0 {
 		t.Errorf("Expected height 0 for new node, got %d", height)
 	}

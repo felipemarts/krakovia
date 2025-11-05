@@ -138,7 +138,7 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 // handleUI serve a interface HTML
 func (s *Server) handleUI(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write([]byte(htmlUI))
+	_, _ = w.Write([]byte(htmlUI))
 }
 
 // handleStatus retorna status do node
@@ -156,7 +156,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(status)
+	_ = json.NewEncoder(w).Encode(status)
 }
 
 // handleWallet retorna informações da wallet
@@ -169,7 +169,7 @@ func (s *Server) handleWallet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(wallet)
+	_ = json.NewEncoder(w).Encode(wallet)
 }
 
 // handlePeers retorna lista de peers
@@ -184,7 +184,7 @@ func (s *Server) handlePeers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"peers": peerList,
 		"count": len(peerList),
 	})
@@ -202,7 +202,7 @@ func (s *Server) handleLastBlock(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(blockData)
+	_ = json.NewEncoder(w).Encode(blockData)
 }
 
 // handleStartMining inicia mineração
@@ -215,14 +215,14 @@ func (s *Server) handleStartMining(w http.ResponseWriter, r *http.Request) {
 	if err := s.node.StartMining(); err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"error": err.Error(),
 		})
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
+	_ = json.NewEncoder(w).Encode(map[string]string{
 		"status": "mining started",
 	})
 }
@@ -237,7 +237,7 @@ func (s *Server) handleStopMining(w http.ResponseWriter, r *http.Request) {
 	s.node.StopMining()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
+	_ = json.NewEncoder(w).Encode(map[string]string{
 		"status": "mining stopped",
 	})
 }
@@ -265,14 +265,14 @@ func (s *Server) handleSendTransaction(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"error": err.Error(),
 		})
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
+	_ = json.NewEncoder(w).Encode(map[string]string{
 		"status": "transaction created",
 		"tx_id":  tx.GetID(),
 	})
@@ -299,14 +299,14 @@ func (s *Server) handleStakeTransaction(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"error": err.Error(),
 		})
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
+	_ = json.NewEncoder(w).Encode(map[string]string{
 		"status": "stake transaction created",
 		"tx_id":  tx.GetID(),
 	})
@@ -333,14 +333,14 @@ func (s *Server) handleUnstakeTransaction(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"error": err.Error(),
 		})
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
+	_ = json.NewEncoder(w).Encode(map[string]string{
 		"status": "unstake transaction created",
 		"tx_id":  tx.GetID(),
 	})
