@@ -2,226 +2,116 @@ package main
 
 import (
 	"fmt"
-	"math"
-	"math/rand"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
 )
 
 func main() {
-	// Initialize window
-	screenWidth := int32(1024)
-	screenHeight := int32(768)
+	// Inicializar janela
+	screenWidth := int32(1920)
+	screenHeight := int32(1080)
 
-	rl.InitWindow(screenWidth, screenHeight, "Voxel World - 10k Voxels Instanced")
+	rl.InitWindow(screenWidth, screenHeight, "Minecraft Clone - Go + Raylib")
 	defer rl.CloseWindow()
+
+	// Desabilitar cursor para FPS camera
+	rl.DisableCursor()
 
 	rl.SetTargetFPS(60)
 
-	// Setup camera
-	camera := rl.Camera3D{
-		Position:   rl.NewVector3(50.0, 30.0, 50.0),
-		Target:     rl.NewVector3(0.0, 0.0, 0.0),
-		Up:         rl.NewVector3(0.0, 1.0, 0.0),
-		Fovy:       45.0,
-		Projection: rl.CameraPerspective,
-	}
+	// Criar mundo
+	world := NewMinecraftWorld()
+	defer world.Unload()
 
-	// Carregar modelo com animação
-	model := rl.LoadModel("../model.glb")
-	defer rl.UnloadModel(model)
+	// Criar player na posição inicial (y=30 para spawnar acima do terreno)
+	player := NewMinecraftPlayer(rl.NewVector3(0, 30, 0))
 
-	// Carregar animações do modelo
-	modelAnimations := rl.LoadModelAnimations("../model.glb")
-	animsCount := int32(len(modelAnimations))
-	defer rl.UnloadModelAnimations(modelAnimations)
+	fmt.Println("=== Minecraft Clone ===")
+	fmt.Println("Controls:")
+	fmt.Println("  WASD - Move")
+	fmt.Println("  Mouse - Look around")
+	fmt.Println("  Space - Jump")
+	fmt.Println("  Left Click - Break block")
+	fmt.Println("  Right Click - Place block")
+	fmt.Println("  1-5 or Mouse Wheel - Select block type")
+	fmt.Println("  ESC - Exit")
+	fmt.Println()
 
-	animFrameCounter := int32(0)
-	currentAnim := int32(0)
-
-	// Criar mundo de voxels com capacidade para 10k voxels
-	// Agora com texturas!
-	voxelWorld := NewVoxelWorld(10000, "voxel_atlas.png", 2)
-	defer voxelWorld.Unload()
-
-	// Gerar 10 mil voxels com texturas aleatórias
-	generateVoxelTerrainWithTextures(voxelWorld, 10000)
-
-	// Atualizar dados de instancing
-	voxelWorld.UpdateInstanceData()
-
-	fmt.Printf("Voxel World initialized!\n")
-	fmt.Printf("Total voxels: %d\n", voxelWorld.ActiveInstances)
-	fmt.Printf("Rendering with single draw call using instancing\n")
-	fmt.Printf("Atlas texture ID: %d\n", voxelWorld.AtlasTexture.ID)
-	fmt.Printf("Atlas size: %dx%d\n", voxelWorld.AtlasTexture.Width, voxelWorld.AtlasTexture.Height)
-	if animsCount > 0 {
-		fmt.Printf("Model animations: %d\n", animsCount)
-	}
+	frameCount := 0
+	updateChunksInterval := 10 // Atualizar chunks a cada N frames
 
 	// Main game loop
 	for !rl.WindowShouldClose() {
-		// Update camera
-		rl.UpdateCamera(&camera, rl.CameraOrbital)
+		dt := rl.GetFrameTime()
 
-		// Update model animation
-		if animsCount > 0 {
-			animFrameCounter++
-			rl.UpdateModelAnimation(model, modelAnimations[currentAnim], animFrameCounter)
+		// Atualizar player (física, input, câmera)
+		player.Update(world, dt)
 
-			// Loop animation
-			if animFrameCounter >= modelAnimations[currentAnim].FrameCount {
-				animFrameCounter = 0
-			}
+		// Atualizar chunks periodicamente
+		if frameCount%updateChunksInterval == 0 {
+			world.UpdateChunks(player.Position)
 		}
+		frameCount++
 
-		// Draw
+		// Interação com blocos (adicionar/remover)
+		player.HandleBlockInteraction(world)
+
+		// Desenhar
 		rl.BeginDrawing()
 		rl.ClearBackground(rl.NewColor(135, 206, 235, 255)) // Sky blue
 
-		rl.BeginMode3D(camera)
+		rl.BeginMode3D(player.Camera)
 
-		// Draw all voxels with ONE draw call!
-		voxelWorld.Draw()
+		// Desenhar mundo
+		world.Draw()
 
-		// Draw animated model in the center
-		rl.DrawModel(model, rl.NewVector3(0.0, 10.0, 0.0), 2.0, rl.White)
+		// Desenhar player (cápsula)
+		player.Draw()
 
-		// Draw grid
-		rl.DrawGrid(100, 1.0)
+		// Desenhar crosshair (mira) no bloco apontado
+		hit, hitPos, _ := player.Raycast(world)
+		if hit {
+			// Desenhar wireframe ao redor do bloco apontado
+			rl.DrawCubeWires(
+				rl.NewVector3(hitPos.X+0.5, hitPos.Y+0.5, hitPos.Z+0.5),
+				1.01, 1.01, 1.01,
+				rl.Black,
+			)
+		}
 
 		rl.EndMode3D()
 
-		// Draw info
-		rl.DrawText("Voxel World - Instanced Rendering", 10, 10, 20, rl.DarkGray)
-		infoText := fmt.Sprintf("Voxels: %d | Draw Calls: 1 | Frame: %d", voxelWorld.ActiveInstances, animFrameCounter)
-		rl.DrawText(infoText, 10, 40, 20, rl.DarkGray)
-		rl.DrawText("Use mouse to rotate camera", 10, 70, 20, rl.DarkGray)
+		// UI
+		rl.DrawText("Minecraft Clone", 10, 10, 20, rl.DarkGray)
+		posText := fmt.Sprintf("Position: (%.1f, %.1f, %.1f)", player.Position.X, player.Position.Y, player.Position.Z)
+		rl.DrawText(posText, 10, 40, 20, rl.DarkGray)
+
+		selectedText := fmt.Sprintf("Selected: %s [%d]", player.GetSelectedBlockName(), player.SelectedBlock)
+		rl.DrawText(selectedText, 10, 70, 20, rl.DarkGray)
+
+		chunksText := fmt.Sprintf("Chunks loaded: %d", len(world.Chunks))
+		rl.DrawText(chunksText, 10, 100, 20, rl.DarkGray)
+
+		groundText := "On ground: No"
+		if player.IsOnGround {
+			groundText = "On ground: Yes"
+		}
+		rl.DrawText(groundText, 10, 130, 20, rl.DarkGray)
+
+		// Desenhar preview do bloco selecionado
+		blockColor := GetBlockColor(player.SelectedBlock)
+		rl.DrawRectangle(screenWidth-60, 10, 50, 50, blockColor)
+		rl.DrawRectangleLines(screenWidth-60, 10, 50, 50, rl.Black)
+
+		// Crosshair
+		crosshairSize := int32(10)
+		centerX := screenWidth / 2
+		centerY := screenHeight / 2
+		rl.DrawLine(centerX-crosshairSize, centerY, centerX+crosshairSize, centerY, rl.White)
+		rl.DrawLine(centerX, centerY-crosshairSize, centerX, centerY+crosshairSize, rl.White)
 
 		rl.DrawFPS(10, screenHeight-30)
 
 		rl.EndDrawing()
 	}
-}
-
-// generateVoxelTerrainWithTextures gera um terreno de voxels com texturas aleatórias
-func generateVoxelTerrainWithTextures(world *VoxelWorld, numVoxels int32) {
-	// Criar um chunk principal
-	chunk := NewChunk(rl.NewVector3(0, 0, 0), 100)
-
-	// Gerar voxels em um padrão de terreno com ruído
-	gridSize := int32(math.Sqrt(float64(numVoxels)))
-
-	for i := int32(0); i < numVoxels; i++ {
-		x := i % gridSize
-		z := i / gridSize
-
-		// Criar um padrão de altura usando função seno/cosseno
-		fx := float32(x) * 0.1
-		fz := float32(z) * 0.1
-		height := float32(math.Sin(float64(fx))*3.0 + math.Cos(float64(fz))*3.0 + 5.0)
-
-		// Adicionar alguma aleatoriedade
-		height += rand.Float32() * 2.0
-
-		// Escolher textura aleatória (0 = azul, 1 = verde)
-		textureIndex := int32(rand.Intn(2))
-
-		position := rl.NewVector3(float32(x)-float32(gridSize)/2, height, float32(z)-float32(gridSize)/2)
-		chunk.AddVoxelWithTexture(position, rl.White, textureIndex)
-	}
-
-	world.AddChunk(chunk)
-}
-
-// generateVoxelTerrain gera um terreno de voxels interessante (sem texturas)
-func generateVoxelTerrain(world *VoxelWorld, numVoxels int32) {
-	// Criar um chunk principal
-	chunk := NewChunk(rl.NewVector3(0, 0, 0), 100)
-
-	// Gerar voxels em um padrão de terreno com ruído
-	gridSize := int32(math.Sqrt(float64(numVoxels)))
-
-	for i := int32(0); i < numVoxels; i++ {
-		x := i % gridSize
-		z := i / gridSize
-
-		// Criar um padrão de altura usando função seno/cosseno
-		fx := float32(x) * 0.1
-		fz := float32(z) * 0.1
-		height := float32(math.Sin(float64(fx))*3.0 + math.Cos(float64(fz))*3.0 + 5.0)
-
-		// Adicionar alguma aleatoriedade
-		height += rand.Float32() * 2.0
-
-		// Escolher cor baseada na altura
-		var color rl.Color
-		if height < 3.0 {
-			color = rl.NewColor(34, 139, 34, 255) // Verde escuro (baixo)
-		} else if height < 6.0 {
-			color = rl.NewColor(107, 142, 35, 255) // Verde oliva (médio)
-		} else if height < 9.0 {
-			color = rl.NewColor(139, 137, 137, 255) // Cinza (alto)
-		} else {
-			color = rl.White // Branco (picos)
-		}
-
-		position := rl.NewVector3(float32(x)-float32(gridSize)/2, height, float32(z)-float32(gridSize)/2)
-		chunk.AddVoxel(position, color)
-	}
-
-	world.AddChunk(chunk)
-}
-
-// Funções alternativas de geração de terreno
-
-// generateVoxelCube gera um cubo de voxels
-func generateVoxelCube(world *VoxelWorld, size int32) {
-	chunk := NewChunk(rl.NewVector3(0, 0, 0), size)
-
-	for x := int32(0); x < size; x++ {
-		for y := int32(0); y < size; y++ {
-			for z := int32(0); z < size; z++ {
-				// Apenas voxels na superfície do cubo
-				if x == 0 || x == size-1 || y == 0 || y == size-1 || z == 0 || z == size-1 {
-					color := rl.NewColor(
-						uint8(rand.Intn(255)),
-						uint8(rand.Intn(255)),
-						uint8(rand.Intn(255)),
-						255,
-					)
-					position := rl.NewVector3(float32(x)-float32(size)/2, float32(y), float32(z)-float32(size)/2)
-					chunk.AddVoxel(position, color)
-				}
-			}
-		}
-	}
-
-	world.AddChunk(chunk)
-}
-
-// generateVoxelSphere gera uma esfera de voxels
-func generateVoxelSphere(world *VoxelWorld, radius float32, numVoxels int32) {
-	chunk := NewChunk(rl.NewVector3(0, 0, 0), 100)
-
-	for i := int32(0); i < numVoxels; i++ {
-		// Gerar pontos aleatórios em uma esfera
-		theta := rand.Float32() * 2.0 * math.Pi
-		phi := rand.Float32() * math.Pi
-
-		x := radius * float32(math.Sin(float64(phi))) * float32(math.Cos(float64(theta)))
-		y := radius * float32(math.Sin(float64(phi))) * float32(math.Sin(float64(theta)))
-		z := radius * float32(math.Cos(float64(phi)))
-
-		color := rl.NewColor(
-			uint8(rand.Intn(255)),
-			uint8(rand.Intn(255)),
-			uint8(rand.Intn(255)),
-			255,
-		)
-
-		chunk.AddVoxel(rl.NewVector3(x, y+radius, z), color)
-	}
-
-	world.AddChunk(chunk)
 }
