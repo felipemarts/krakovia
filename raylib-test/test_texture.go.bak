@@ -1,0 +1,50 @@
+package main
+
+import (
+	rl "github.com/gen2brain/raylib-go/raylib"
+)
+
+func testTextureAtlas() {
+	// Initialize
+	rl.InitWindow(800, 600, "Test Texture Atlas")
+	defer rl.CloseWindow()
+
+	rl.SetTargetFPS(60)
+
+	// Load atlas
+	atlas := rl.LoadTexture("voxel_atlas.png")
+	defer rl.UnloadTexture(atlas)
+
+	camera := rl.Camera3D{
+		Position:   rl.NewVector3(3.0, 3.0, 3.0),
+		Target:     rl.NewVector3(0.0, 0.0, 0.0),
+		Up:         rl.NewVector3(0.0, 1.0, 0.0),
+		Fovy:       45.0,
+		Projection: rl.CameraPerspective,
+	}
+
+	for !rl.WindowShouldClose() {
+		rl.UpdateCamera(&camera, rl.CameraOrbital)
+
+		rl.BeginDrawing()
+		rl.ClearBackground(rl.RayWhite)
+
+		// Draw 2D atlas for verification
+		rl.DrawTexture(atlas, 10, 10, rl.White)
+		rl.DrawText("Atlas Texture", 10, atlas.Height+20, 20, rl.Black)
+
+		rl.BeginMode3D(camera)
+
+		// Draw a simple cube with the texture
+		rl.DrawCube(rl.NewVector3(0, 0, 0), 2, 2, 2, rl.White)
+		rl.DrawCubeWires(rl.NewVector3(0, 0, 0), 2, 2, 2, rl.Black)
+
+		rl.DrawGrid(10, 1.0)
+
+		rl.EndMode3D()
+
+		rl.DrawFPS(700, 10)
+
+		rl.EndDrawing()
+	}
+}

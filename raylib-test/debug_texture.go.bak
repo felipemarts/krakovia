@@ -1,0 +1,33 @@
+package main
+
+import (
+	"fmt"
+
+	rl "github.com/gen2brain/raylib-go/raylib"
+)
+
+// Debug function to check if texture loaded correctly
+func debugTextureColors() {
+	// Initialize hidden window
+	rl.SetConfigFlags(rl.FlagWindowHidden)
+	rl.InitWindow(1, 1, "Debug")
+	defer rl.CloseWindow()
+
+	// Load atlas as image to inspect pixels
+	img := rl.LoadImage("voxel_atlas.png")
+	defer rl.UnloadImage(img)
+
+	fmt.Printf("Atlas size: %dx%d\n", img.Width, img.Height)
+	fmt.Printf("Format: %d\n", img.Format)
+
+	// Sample some pixels
+	// Left side (should be blue - texture 0)
+	leftPixel := rl.GetImageColor(img, 16, 16)
+	fmt.Printf("Left pixel (16,16): R=%d G=%d B=%d A=%d\n",
+		leftPixel.R, leftPixel.G, leftPixel.B, leftPixel.A)
+
+	// Right side (should be green - texture 1)
+	rightPixel := rl.GetImageColor(img, 48, 16)
+	fmt.Printf("Right pixel (48,16): R=%d G=%d B=%d A=%d\n",
+		rightPixel.R, rightPixel.G, rightPixel.B, rightPixel.A)
+}
