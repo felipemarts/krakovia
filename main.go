@@ -29,11 +29,14 @@ func main() {
 	// Gerar terreno inicial
 	world.GenerateTerrain()
 
+	// Input real do Raylib
+	input := &RaylibInput{}
+
 	for !rl.WindowShouldClose() {
 		dt := rl.GetFrameTime()
 
 		// Atualizar jogador
-		player.Update(dt, world)
+		player.Update(dt, world, input)
 
 		// Renderizar
 		rl.BeginDrawing()
@@ -113,9 +116,9 @@ func NewPlayer(position rl.Vector3) *Player {
 	return player
 }
 
-func (p *Player) Update(dt float32, world *World) {
+func (p *Player) Update(dt float32, world *World, input Input) {
 	// Controle do mouse
-	mouseDelta := rl.GetMouseDelta()
+	mouseDelta := input.GetMouseDelta()
 	sensitivity := float32(0.003)
 
 	p.Yaw -= mouseDelta.X * sensitivity
@@ -145,16 +148,16 @@ func (p *Player) Update(dt float32, world *World) {
 	speed := float32(4.3)
 	moveInput := rl.NewVector3(0, 0, 0)
 
-	if rl.IsKeyDown(rl.KeyW) {
+	if input.IsForwardPressed() {
 		moveInput = rl.Vector3Add(moveInput, forward)
 	}
-	if rl.IsKeyDown(rl.KeyS) {
+	if input.IsBackPressed() {
 		moveInput = rl.Vector3Subtract(moveInput, forward)
 	}
-	if rl.IsKeyDown(rl.KeyA) {
+	if input.IsLeftPressed() {
 		moveInput = rl.Vector3Add(moveInput, right)
 	}
-	if rl.IsKeyDown(rl.KeyD) {
+	if input.IsRightPressed() {
 		moveInput = rl.Vector3Subtract(moveInput, right)
 	}
 
@@ -172,7 +175,7 @@ func (p *Player) Update(dt float32, world *World) {
 	p.Velocity.Y += gravity * dt
 
 	// Pulo
-	if rl.IsKeyPressed(rl.KeySpace) && p.IsOnGround {
+	if input.IsJumpPressed() && p.IsOnGround {
 		p.Velocity.Y = 8.0
 		p.IsOnGround = false
 	}
@@ -208,12 +211,12 @@ func (p *Player) Update(dt float32, world *World) {
 	p.RaycastBlocks(world)
 
 	// Interação com blocos
-	if rl.IsMouseButtonPressed(rl.MouseLeftButton) && p.LookingAtBlock {
+	if input.IsLeftClickPressed() && p.LookingAtBlock {
 		// Remover bloco
 		world.SetBlock(int32(p.TargetBlock.X), int32(p.TargetBlock.Y), int32(p.TargetBlock.Z), BlockAir)
 	}
 
-	if rl.IsMouseButtonPressed(rl.MouseRightButton) && p.LookingAtBlock {
+	if input.IsRightClickPressed() && p.LookingAtBlock {
 		// Colocar bloco
 		world.SetBlock(int32(p.PlaceBlock.X), int32(p.PlaceBlock.Y), int32(p.PlaceBlock.Z), BlockStone)
 	}
