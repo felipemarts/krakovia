@@ -71,7 +71,8 @@ func main() {
 		rl.DrawText("WASD - Mover | Espaço - Pular | Mouse - Olhar", 10, 10, 20, rl.Black)
 		rl.DrawText("Click Esquerdo - Remover | Click Direito - Colocar", 10, 35, 20, rl.Black)
 		rl.DrawText(fmt.Sprintf("Posição: (%.1f, %.1f, %.1f)", player.Position.X, player.Position.Y, player.Position.Z), 10, 60, 20, rl.Black)
-		rl.DrawText(fmt.Sprintf("Blocos: %d total", len(world.BlockTransforms)), 10, 85, 20, rl.Black)
+		totalBlocks := len(world.GrassTransforms) + len(world.DirtTransforms) + len(world.StoneTransforms)
+		rl.DrawText(fmt.Sprintf("Blocos: %d total | Draw calls: 3", totalBlocks), 10, 85, 20, rl.Black)
 		rl.DrawText(fmt.Sprintf("FPS: %d", rl.GetFPS()), 10, screenHeight-30, 20, rl.Green)
 
 		// Crosshair
@@ -451,8 +452,10 @@ type World struct {
 	StoneMesh        rl.Mesh
 	Material         rl.Material
 	TextureAtlas     rl.Texture2D
-	BlockTransforms  []rl.Matrix
-	BlockTypes       []BlockType
+	// Instanced rendering: transforms agrupados por tipo de bloco
+	GrassTransforms  []rl.Matrix
+	DirtTransforms   []rl.Matrix
+	StoneTransforms  []rl.Matrix
 	NeedUpdateMeshes bool
 }
 
@@ -549,13 +552,14 @@ func (w *World) GenerateTerrain() {
 	}
 }
 
-// UpdateMeshes atualiza os arrays de transformações
+// UpdateMeshes atualiza os arrays de transformações agrupados por tipo de bloco
 func (w *World) UpdateMeshes() {
-	// Limpar arrays
-	w.BlockTransforms = w.BlockTransforms[:0]
-	w.BlockTypes = w.BlockTypes[:0]
+	// Limpar arrays (reutilizar memória)
+	w.GrassTransforms = w.GrassTransforms[:0]
+	w.DirtTransforms = w.DirtTransforms[:0]
+	w.StoneTransforms = w.StoneTransforms[:0]
 
-	// Iterar por todos os blocos e criar matrizes de transformação
+	// Iterar por todos os blocos e criar matrizes de transformação agrupadas por tipo
 	for idx, blockType := range w.Blocks {
 		if blockType == BlockAir {
 			continue
@@ -581,9 +585,15 @@ func (w *World) UpdateMeshes() {
 		// Centralizar o cubo (+0.5 em cada eixo)
 		transform := rl.MatrixTranslate(float32(x)+0.5, float32(y)+0.5, float32(z)+0.5)
 
-		// Adicionar aos arrays
-		w.BlockTransforms = append(w.BlockTransforms, transform)
-		w.BlockTypes = append(w.BlockTypes, blockType)
+		// Adicionar ao array correspondente ao tipo de bloco
+		switch blockType {
+		case BlockGrass:
+			w.GrassTransforms = append(w.GrassTransforms, transform)
+		case BlockDirt:
+			w.DirtTransforms = append(w.DirtTransforms, transform)
+		case BlockStone:
+			w.StoneTransforms = append(w.StoneTransforms, transform)
+		}
 	}
 
 	w.NeedUpdateMeshes = false
@@ -674,22 +684,119 @@ func (w *World) Render() {
 		w.UpdateMeshes()
 	}
 
-	// Renderizar todos os blocos com textura
-	for i := 0; i < len(w.BlockTransforms); i++ {
-		// Selecionar mesh baseado no tipo de bloco
-		var mesh rl.Mesh
-		switch w.BlockTypes[i] {
-		case BlockGrass:
-			mesh = w.GrassMesh
-		case BlockDirt:
-			mesh = w.DirtMesh
-		case BlockStone:
-			mesh = w.StoneMesh
-		default:
-			mesh = w.GrassMesh
+	// Renderizar blocos de grama (1 draw call para todos)
+	if len(w.GrassTransforms) > 0 {
+		DrawMeshInstanced(w.GrassMesh, w.Material, w.GrassTransforms)
+	}
+
+	// Renderizar blocos de terra (1 draw call para todos)
+	if len(w.DirtTransforms) > 0 {
+		DrawMeshInstanced(w.DirtMesh, w.Material, w.DirtTransforms)
+	}
+
+	// Renderizar blocos de pedra (1 draw call para todos)
+	if len(w.StoneTransforms) > 0 {
+		DrawMeshInstanced(w.StoneMesh, w.Material, w.StoneTransforms)
+	}
+}
+
+// DrawMeshInstanced desenha múltiplas instâncias de uma mesh com diferentes transformações
+// usando geometry batching - combina todas as geometrias em uma única mesh para 1 draw call
+func DrawMeshInstanced(mesh rl.Mesh, material rl.Material, transforms []rl.Matrix) {
+	if len(transforms) == 0 {
+		return
+	}
+
+	// Se houver apenas uma instância, usar draw normal
+	if len(transforms) == 1 {
+		rl.DrawMesh(mesh, material, transforms[0])
+		return
+	}
+
+	// Criar mesh combinada com todas as instâncias transformadas
+	batchedMesh := CreateBatchedMesh(mesh, transforms)
+	defer rl.UnloadMesh(&batchedMesh)
+
+	// Um único draw call para todas as instâncias!
+	rl.DrawMesh(batchedMesh, material, rl.MatrixIdentity())
+}
+
+// CreateBatchedMesh cria uma única mesh contendo todas as instâncias transformadas
+func CreateBatchedMesh(baseMesh rl.Mesh, transforms []rl.Matrix) rl.Mesh {
+	instanceCount := int32(len(transforms))
+	verticesPerInstance := baseMesh.VertexCount
+	trianglesPerInstance := baseMesh.TriangleCount
+
+	// Alocar nova mesh com espaço para todas as instâncias
+	batchedMesh := rl.Mesh{
+		VertexCount:   verticesPerInstance * instanceCount,
+		TriangleCount: trianglesPerInstance * instanceCount,
+	}
+
+	// Converter ponteiros para slices usando unsafe
+	baseVertices := unsafe.Slice(baseMesh.Vertices, verticesPerInstance*3)
+	baseTexcoords := unsafe.Slice(baseMesh.Texcoords, verticesPerInstance*2)
+	baseNormals := unsafe.Slice(baseMesh.Normals, verticesPerInstance*3)
+	baseIndices := unsafe.Slice(baseMesh.Indices, trianglesPerInstance*3)
+
+	// Alocar arrays para mesh combinada
+	newVertices := make([]float32, batchedMesh.VertexCount*3)
+	newTexcoords := make([]float32, batchedMesh.VertexCount*2)
+	newNormals := make([]float32, batchedMesh.VertexCount*3)
+	newIndices := make([]uint16, batchedMesh.TriangleCount*3)
+
+	// Copiar e transformar dados de cada instância
+	for i := int32(0); i < instanceCount; i++ {
+		transform := transforms[i]
+		vertexOffset := i * verticesPerInstance
+		indexOffset := i * verticesPerInstance
+		triangleOffset := i * trianglesPerInstance
+
+		// Transformar vértices e normais
+		for v := int32(0); v < verticesPerInstance; v++ {
+			// Posição original
+			x := baseVertices[v*3]
+			y := baseVertices[v*3+1]
+			z := baseVertices[v*3+2]
+
+			// Aplicar transformação
+			pos := rl.Vector3Transform(rl.NewVector3(x, y, z), transform)
+
+			// Armazenar no array combinado
+			idx := (vertexOffset + v) * 3
+			newVertices[idx] = pos.X
+			newVertices[idx+1] = pos.Y
+			newVertices[idx+2] = pos.Z
+
+			// Normal (apenas rotação, sem translação)
+			nx := baseNormals[v*3]
+			ny := baseNormals[v*3+1]
+			nz := baseNormals[v*3+2]
+			normal := rl.Vector3Transform(rl.NewVector3(nx, ny, nz), rl.MatrixIdentity())
+			newNormals[idx] = normal.X
+			newNormals[idx+1] = normal.Y
+			newNormals[idx+2] = normal.Z
+
+			// Coordenadas de textura (sem transformação)
+			texIdx := (vertexOffset + v) * 2
+			newTexcoords[texIdx] = baseTexcoords[v*2]
+			newTexcoords[texIdx+1] = baseTexcoords[v*2+1]
 		}
 
-		// Desenhar mesh com textura
-		rl.DrawMesh(mesh, w.Material, w.BlockTransforms[i])
+		// Copiar índices (ajustando offset)
+		for t := int32(0); t < trianglesPerInstance*3; t++ {
+			newIndices[triangleOffset*3+t] = baseIndices[t] + uint16(indexOffset)
+		}
 	}
+
+	// Atribuir dados à mesh
+	batchedMesh.Vertices = &newVertices[0]
+	batchedMesh.Texcoords = &newTexcoords[0]
+	batchedMesh.Normals = &newNormals[0]
+	batchedMesh.Indices = &newIndices[0]
+
+	// Upload para GPU
+	rl.UploadMesh(&batchedMesh, false)
+
+	return batchedMesh
 }
