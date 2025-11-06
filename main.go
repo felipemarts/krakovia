@@ -51,9 +51,9 @@ func main() {
 		if player.LookingAtBlock {
 			// Centralizar o wireframe no meio do bloco
 			centerPos := rl.NewVector3(
-				player.TargetBlock.X + 0.5,
-				player.TargetBlock.Y + 0.5,
-				player.TargetBlock.Z + 0.5,
+				player.TargetBlock.X+0.5,
+				player.TargetBlock.Y+0.5,
+				player.TargetBlock.Z+0.5,
 			)
 			rl.DrawCubeWiresV(centerPos, rl.NewVector3(1.01, 1.01, 1.01), rl.Red)
 		}
@@ -76,18 +76,18 @@ func main() {
 
 // Player representa o jogador
 type Player struct {
-	Position        rl.Vector3
-	Velocity        rl.Vector3
-	Camera          rl.Camera3D
-	Yaw             float32
-	Pitch           float32
-	IsOnGround      bool
-	LookingAtBlock  bool
-	TargetBlock     rl.Vector3
-	PlaceBlock      rl.Vector3
-	Height          float32
-	Radius          float32
-	CameraDistance  float32
+	Position       rl.Vector3
+	Velocity       rl.Vector3
+	Camera         rl.Camera3D
+	Yaw            float32
+	Pitch          float32
+	IsOnGround     bool
+	LookingAtBlock bool
+	TargetBlock    rl.Vector3
+	PlaceBlock     rl.Vector3
+	Height         float32
+	Radius         float32
+	CameraDistance float32
 }
 
 func NewPlayer(position rl.Vector3) *Player {
@@ -119,7 +119,7 @@ func (p *Player) Update(dt float32, world *World) {
 	sensitivity := float32(0.003)
 
 	p.Yaw -= mouseDelta.X * sensitivity
-	p.Pitch -= mouseDelta.Y * sensitivity
+	p.Pitch += mouseDelta.Y * sensitivity // Invertido para movimento natural
 
 	// Limitar pitch
 	if p.Pitch > 1.5 {
@@ -181,9 +181,21 @@ func (p *Player) Update(dt float32, world *World) {
 	p.ApplyMovement(dt, world)
 
 	// Atualizar câmera em terceira pessoa
-	// Posição do alvo (jogador)
 	targetHeight := float32(1.0)
-	p.Camera.Target = rl.NewVector3(p.Position.X, p.Position.Y+targetHeight, p.Position.Z)
+
+	// Calcular direção "direita" baseada no yaw para offset horizontal
+	rightX := float32(math.Cos(float64(p.Yaw)))
+	rightZ := float32(-math.Sin(float64(p.Yaw)))
+
+	// Offset do target: um pouco à direita e para cima do centro do jogador
+	targetOffsetRight := float32(-1.0) // Desloca para direita
+	targetOffsetUp := float32(1.0)     // Desloca para cima
+
+	p.Camera.Target = rl.NewVector3(
+		p.Position.X+rightX*targetOffsetRight,
+		p.Position.Y+targetHeight+targetOffsetUp,
+		p.Position.Z+rightZ*targetOffsetRight,
+	)
 
 	// Calcular posição da câmera atrás do jogador
 	camX := p.Position.X - float32(math.Sin(float64(p.Yaw))*math.Cos(float64(p.Pitch)))*p.CameraDistance
@@ -312,21 +324,9 @@ func (p *Player) CheckCollision(newPos rl.Vector3, world *World) bool {
 }
 
 func (p *Player) RaycastBlocks(world *World) {
-	// Raycast a partir de uma posição de mira de ombro (sobre o ombro direito)
-	eyeHeight := float32(1.5)
-	shoulderOffset := float32(0.3) // Offset para a direita
-	shoulderUp := float32(0.2)     // Offset para cima
-
-	// Calcular direção "direita" baseada no yaw
-	rightX := float32(math.Cos(float64(p.Yaw)))
-	rightZ := float32(-math.Sin(float64(p.Yaw)))
-
-	// Posição de mira sobre o ombro direito
-	rayOrigin := rl.NewVector3(
-		p.Position.X + rightX*shoulderOffset,
-		p.Position.Y + eyeHeight + shoulderUp,
-		p.Position.Z + rightZ*shoulderOffset,
-	)
+	// Raycast diretamente da câmera na direção que ela está apontando
+	// Isso garante que o raycast sempre acerte onde o crosshair aponta
+	rayOrigin := p.Camera.Position
 	rayDir := rl.Vector3Normalize(rl.Vector3Subtract(p.Camera.Target, p.Camera.Position))
 
 	maxDistance := float32(8.0)
