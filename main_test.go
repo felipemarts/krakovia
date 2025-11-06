@@ -10,14 +10,13 @@ import (
 // Helper: criar mundo plano para testes
 func createFlatWorld() *World {
 	world := NewWorld()
-	// Criar um chão plano em Y=10
-	for x := int32(0); x < world.SizeX; x++ {
-		for z := int32(0); z < world.SizeZ; z++ {
-			world.SetBlock(x, 10, z, BlockGrass)
-			// Camadas de dirt abaixo
-			for y := int32(0); y < 10; y++ {
-				world.SetBlock(x, y, z, BlockDirt)
-			}
+	// Carregar chunks manualmente para testes
+	for x := int32(-1); x <= 1; x++ {
+		for z := int32(-1); z <= 1; z++ {
+			chunk := NewChunk(x, 0, z)
+			chunk.GenerateTerrain()
+			key := ChunkCoord{X: x, Y: 0, Z: z}.Key()
+			world.ChunkManager.Chunks[key] = chunk
 		}
 	}
 	return world
@@ -451,7 +450,7 @@ func TestPlayerRemoveBlock_CannotRemoveWithoutTarget(t *testing.T) {
 	player := NewPlayer(rl.NewVector3(16, 20, 16)) // No ar
 
 	// Contar blocos iniciais
-	initialBlockCount := len(world.Blocks)
+	initialBlockCount := world.GetTotalBlocks()
 
 	// Olhar para cima (sem target)
 	player.Yaw = 0
@@ -461,7 +460,7 @@ func TestPlayerRemoveBlock_CannotRemoveWithoutTarget(t *testing.T) {
 	player.Update(1.0/60.0, world, input)
 
 	// Quantidade de blocos não deveria ter mudado
-	finalBlockCount := len(world.Blocks)
+	finalBlockCount := world.GetTotalBlocks()
 	if finalBlockCount != initialBlockCount {
 		t.Errorf("Não deveria ter removido nenhum bloco sem target. Inicial: %d, Final: %d",
 			initialBlockCount, finalBlockCount)

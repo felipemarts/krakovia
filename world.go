@@ -1,36 +1,25 @@
 package main
 
 import (
-	"math"
-
 	rl "github.com/gen2brain/raylib-go/raylib"
 )
 
-// World representa o mundo voxel
+// World representa o mundo voxel com sistema de chunks
 type World struct {
-	Blocks           map[int64]BlockType
-	SizeX            int32
-	SizeY            int32
-	SizeZ            int32
-	GrassMesh        rl.Mesh
-	DirtMesh         rl.Mesh
-	StoneMesh        rl.Mesh
-	Material         rl.Material
-	TextureAtlas     rl.Texture2D
-	// Instanced rendering: transforms agrupados por tipo de bloco
-	GrassTransforms  []rl.Matrix
-	DirtTransforms   []rl.Matrix
-	StoneTransforms  []rl.Matrix
-	NeedUpdateMeshes bool
+	ChunkManager   *ChunkManager
+	GrassMesh      rl.Mesh
+	DirtMesh       rl.Mesh
+	StoneMesh      rl.Mesh
+	Material       rl.Material
+	TextureAtlas   rl.Texture2D
+	RenderDistance int32
 }
 
 func NewWorld() *World {
+	renderDistance := int32(2) // Carregar chunks em um raio de 2 chunks com carregamento gradual
 	w := &World{
-		Blocks:           make(map[int64]BlockType),
-		SizeX:            32,
-		SizeY:            64,
-		SizeZ:            32,
-		NeedUpdateMeshes: true,
+		ChunkManager:   NewChunkManager(renderDistance),
+		RenderDistance: renderDistance,
 	}
 	return w
 }
@@ -56,123 +45,29 @@ func (w *World) InitWorldGraphics() {
 	w.StoneMesh = CreateTexturedCubeMesh(BlockStone)
 }
 
-func (w *World) GetBlockIndex(x, y, z int32) int64 {
-	return int64(x) | (int64(y) << 20) | (int64(z) << 40)
-}
-
 func (w *World) SetBlock(x, y, z int32, block BlockType) {
-	if x < 0 || x >= w.SizeX || y < 0 || y >= w.SizeY || z < 0 || z >= w.SizeZ {
-		return
-	}
-
-	idx := w.GetBlockIndex(x, y, z)
-	if block == BlockAir {
-		delete(w.Blocks, idx)
-	} else {
-		w.Blocks[idx] = block
-	}
-
-	// Marcar que as meshes precisam ser atualizadas
-	w.NeedUpdateMeshes = true
+	w.ChunkManager.SetBlock(x, y, z, block)
 }
 
 func (w *World) GetBlock(x, y, z int32) BlockType {
-	if x < 0 || x >= w.SizeX || y < 0 || y >= w.SizeY || z < 0 || z >= w.SizeZ {
-		return BlockAir
-	}
-
-	idx := w.GetBlockIndex(x, y, z)
-	if block, exists := w.Blocks[idx]; exists {
-		return block
-	}
-	return BlockAir
+	return w.ChunkManager.GetBlock(x, y, z)
 }
 
-func (w *World) GenerateTerrain() {
-	// Gerar terreno simples
-	for x := int32(0); x < w.SizeX; x++ {
-		for z := int32(0); z < w.SizeZ; z++ {
-			// Altura base + variação simples
-			height := int32(10 + int32(math.Sin(float64(x)*0.3)*3+math.Cos(float64(z)*0.3)*3))
-
-			for y := int32(0); y <= height; y++ {
-				if y == height {
-					w.SetBlock(x, y, z, BlockGrass)
-				} else if y >= height-3 {
-					w.SetBlock(x, y, z, BlockDirt)
-				} else {
-					w.SetBlock(x, y, z, BlockStone)
-				}
-			}
-		}
-	}
+// Update atualiza o mundo (carrega/descarrega chunks baseado na posição do jogador)
+func (w *World) Update(playerPos rl.Vector3, dt float32) {
+	w.ChunkManager.Update(playerPos, dt)
 }
 
-// UpdateMeshes atualiza os arrays de transformações agrupados por tipo de bloco
-func (w *World) UpdateMeshes() {
-	// Limpar arrays (reutilizar memória)
-	w.GrassTransforms = w.GrassTransforms[:0]
-	w.DirtTransforms = w.DirtTransforms[:0]
-	w.StoneTransforms = w.StoneTransforms[:0]
-
-	// Iterar por todos os blocos e criar matrizes de transformação agrupadas por tipo
-	for idx, blockType := range w.Blocks {
-		if blockType == BlockAir {
-			continue
-		}
-
-		// Decodificar posição
-		x := int32(idx & 0xFFFFF)
-		y := int32((idx >> 20) & 0xFFFFF)
-		z := int32((idx >> 40) & 0xFFFFF)
-
-		// Ajustar para valores negativos se necessário
-		if x >= 0x80000 {
-			x -= 0x100000
-		}
-		if y >= 0x80000 {
-			y -= 0x100000
-		}
-		if z >= 0x80000 {
-			z -= 0x100000
-		}
-
-		// Criar matriz de transformação (translação para a posição do bloco)
-		// Centralizar o cubo (+0.5 em cada eixo)
-		transform := rl.MatrixTranslate(float32(x)+0.5, float32(y)+0.5, float32(z)+0.5)
-
-		// Adicionar ao array correspondente ao tipo de bloco
-		switch blockType {
-		case BlockGrass:
-			w.GrassTransforms = append(w.GrassTransforms, transform)
-		case BlockDirt:
-			w.DirtTransforms = append(w.DirtTransforms, transform)
-		case BlockStone:
-			w.StoneTransforms = append(w.StoneTransforms, transform)
-		}
-	}
-
-	w.NeedUpdateMeshes = false
+func (w *World) Render(playerPos rl.Vector3) {
+	w.ChunkManager.Render(w.GrassMesh, w.DirtMesh, w.StoneMesh, w.Material, playerPos)
 }
 
-func (w *World) Render() {
-	// Atualizar meshes se necessário
-	if w.NeedUpdateMeshes {
-		w.UpdateMeshes()
-	}
+// GetTotalBlocks retorna o número total de blocos (para debug/UI)
+func (w *World) GetTotalBlocks() int {
+	return w.ChunkManager.GetTotalBlocks()
+}
 
-	// Renderizar blocos de grama (1 draw call para todos)
-	if len(w.GrassTransforms) > 0 {
-		DrawMeshInstanced(w.GrassMesh, w.Material, w.GrassTransforms)
-	}
-
-	// Renderizar blocos de terra (1 draw call para todos)
-	if len(w.DirtTransforms) > 0 {
-		DrawMeshInstanced(w.DirtMesh, w.Material, w.DirtTransforms)
-	}
-
-	// Renderizar blocos de pedra (1 draw call para todos)
-	if len(w.StoneTransforms) > 0 {
-		DrawMeshInstanced(w.StoneMesh, w.Material, w.StoneTransforms)
-	}
+// GetLoadedChunksCount retorna o número de chunks carregados (para debug/UI)
+func (w *World) GetLoadedChunksCount() int {
+	return w.ChunkManager.GetLoadedChunksCount()
 }

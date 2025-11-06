@@ -185,36 +185,59 @@ func (p *Player) RenderPlayer() {
 }
 
 func (p *Player) ApplyMovement(dt float32, world *World) {
-	// Movimento horizontal (X)
-	newPosX := p.Position
-	newPosX.X += p.Velocity.X * dt
-	if !p.CheckCollision(newPosX, world) {
-		p.Position.X = newPosX.X
-	}
+	// Limitar delta time para evitar tunneling em caso de lag
+	// Subdividir movimentos grandes em steps menores
+	maxDt := float32(0.016) // ~60 FPS
+	remainingDt := dt
 
-	// Movimento horizontal (Z)
-	newPosZ := p.Position
-	newPosZ.Z += p.Velocity.Z * dt
-	if !p.CheckCollision(newPosZ, world) {
-		p.Position.Z = newPosZ.Z
-	}
-
-	// Movimento vertical (Y)
-	newPosY := p.Position
-	newPosY.Y += p.Velocity.Y * dt
-
-	if !p.CheckCollision(newPosY, world) {
-		p.Position.Y = newPosY.Y
-		p.IsOnGround = false
-	} else {
-		if p.Velocity.Y < 0 {
-			// Colidiu com o chão
-			p.IsOnGround = true
-			p.Velocity.Y = 0
-		} else {
-			// Colidiu com o teto
-			p.Velocity.Y = 0
+	for remainingDt > 0 {
+		stepDt := remainingDt
+		if stepDt > maxDt {
+			stepDt = maxDt
 		}
+		remainingDt -= stepDt
+
+		// Movimento horizontal (X)
+		newPosX := p.Position
+		newPosX.X += p.Velocity.X * stepDt
+		if !p.CheckCollision(newPosX, world) {
+			p.Position.X = newPosX.X
+		}
+
+		// Movimento horizontal (Z)
+		newPosZ := p.Position
+		newPosZ.Z += p.Velocity.Z * stepDt
+		if !p.CheckCollision(newPosZ, world) {
+			p.Position.Z = newPosZ.Z
+		}
+
+		// Movimento vertical (Y)
+		newPosY := p.Position
+		newPosY.Y += p.Velocity.Y * stepDt
+
+		if !p.CheckCollision(newPosY, world) {
+			p.Position.Y = newPosY.Y
+			// Só marcar como não no chão se estamos realmente nos movendo para cima ou caindo
+			if p.Velocity.Y != 0 {
+				p.IsOnGround = false
+			}
+		} else {
+			if p.Velocity.Y < 0 {
+				// Colidiu com o chão
+				p.IsOnGround = true
+				p.Velocity.Y = 0
+			} else if p.Velocity.Y > 0 {
+				// Colidiu com o teto
+				p.Velocity.Y = 0
+			}
+		}
+	}
+
+	// Verificação extra: check colisão abaixo para garantir IsOnGround correto
+	checkBelowPos := p.Position
+	checkBelowPos.Y -= 0.01 // Verificar ligeiramente abaixo
+	if p.CheckCollision(checkBelowPos, world) {
+		p.IsOnGround = true
 	}
 }
 

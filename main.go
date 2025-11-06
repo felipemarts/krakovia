@@ -14,7 +14,7 @@ func main() {
 	rl.DisableCursor()
 
 	// Inicializar jogador
-	player := NewPlayer(rl.NewVector3(8, 20, 8))
+	player := NewPlayer(rl.NewVector3(8, 100, 8))
 
 	// Inicializar mundo
 	world := NewWorld()
@@ -22,15 +22,15 @@ func main() {
 	// Inicializar gráficos do mundo (depois de InitWindow)
 	world.InitWorldGraphics()
 
-	// Gerar terreno inicial
-	world.GenerateTerrain()
-
 	// Input real do Raylib
 	input := &RaylibInput{}
 
 	// Loop principal do jogo
 	for !rl.WindowShouldClose() {
 		dt := rl.GetFrameTime()
+
+		// Atualizar mundo (carrega/descarrega chunks baseado na posição do jogador)
+		world.Update(player.Position, dt)
 
 		// Atualizar jogador
 		player.Update(dt, world, input)
@@ -42,7 +42,7 @@ func main() {
 		rl.BeginMode3D(player.Camera)
 
 		// Renderizar mundo
-		world.Render()
+		world.Render(player.Position)
 
 		// Renderizar jogador como cápsula
 		player.RenderPlayer()
@@ -73,8 +73,9 @@ func renderUI(player *Player, world *World) {
 	rl.DrawText("Click Esquerdo - Remover | Click Direito - Colocar", 10, 35, 20, rl.Black)
 	rl.DrawText(fmt.Sprintf("Posição: (%.1f, %.1f, %.1f)", player.Position.X, player.Position.Y, player.Position.Z), 10, 60, 20, rl.Black)
 
-	totalBlocks := len(world.GrassTransforms) + len(world.DirtTransforms) + len(world.StoneTransforms)
-	rl.DrawText(fmt.Sprintf("Blocos: %d total | Draw calls: 3", totalBlocks), 10, 85, 20, rl.Black)
+	totalBlocks := world.GetTotalBlocks()
+	chunksLoaded := world.GetLoadedChunksCount()
+	rl.DrawText(fmt.Sprintf("Blocos: %d | Chunks: %d", totalBlocks, chunksLoaded), 10, 85, 20, rl.Black)
 	rl.DrawText(fmt.Sprintf("FPS: %d", rl.GetFPS()), 10, screenHeight-30, 20, rl.Green)
 
 	// Crosshair
