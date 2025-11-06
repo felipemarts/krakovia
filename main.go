@@ -44,6 +44,9 @@ func main() {
 		// Renderizar mundo
 		world.Render()
 
+		// Renderizar jogador como cápsula
+		player.RenderPlayer()
+
 		// Desenhar highlight para indicar onde o bloco será removido
 		if player.LookingAtBlock {
 			// Centralizar o wireframe no meio do bloco
@@ -84,23 +87,26 @@ type Player struct {
 	PlaceBlock      rl.Vector3
 	Height          float32
 	Radius          float32
+	CameraDistance  float32
 }
 
 func NewPlayer(position rl.Vector3) *Player {
 	player := &Player{
-		Position: position,
-		Velocity: rl.NewVector3(0, 0, 0),
-		Yaw:      0,
-		Pitch:    0,
-		Height:   1.8,
-		Radius:   0.3,
+		Position:       position,
+		Velocity:       rl.NewVector3(0, 0, 0),
+		Yaw:            0,
+		Pitch:          0.3, // Olhando um pouco para baixo
+		Height:         1.8,
+		Radius:         0.3,
+		CameraDistance: 5.0,
 	}
 
+	// Câmera em terceira pessoa
 	player.Camera = rl.Camera3D{
-		Position:   rl.NewVector3(position.X, position.Y+1.6, position.Z),
-		Target:     rl.NewVector3(position.X, position.Y+1.6, position.Z-1),
+		Position:   rl.NewVector3(position.X, position.Y+2, position.Z+5),
+		Target:     rl.NewVector3(position.X, position.Y+1, position.Z),
 		Up:         rl.NewVector3(0, 1, 0),
-		Fovy:       70.0,
+		Fovy:       60.0,
 		Projection: rl.CameraPerspective,
 	}
 
@@ -174,18 +180,17 @@ func (p *Player) Update(dt float32, world *World) {
 	// Aplicar velocidade com detecção de colisão
 	p.ApplyMovement(dt, world)
 
-	// Atualizar câmera
-	eyeHeight := float32(1.6)
-	p.Camera.Position = rl.NewVector3(p.Position.X, p.Position.Y+eyeHeight, p.Position.Z)
+	// Atualizar câmera em terceira pessoa
+	// Posição do alvo (jogador)
+	targetHeight := float32(1.0)
+	p.Camera.Target = rl.NewVector3(p.Position.X, p.Position.Y+targetHeight, p.Position.Z)
 
-	// Calcular direção do olhar (incluindo pitch)
-	lookDir := rl.NewVector3(
-		float32(math.Sin(float64(p.Yaw))*math.Cos(float64(p.Pitch))),
-		float32(math.Sin(float64(p.Pitch))),
-		float32(math.Cos(float64(p.Yaw))*math.Cos(float64(p.Pitch))),
-	)
+	// Calcular posição da câmera atrás do jogador
+	camX := p.Position.X - float32(math.Sin(float64(p.Yaw))*math.Cos(float64(p.Pitch)))*p.CameraDistance
+	camY := p.Position.Y + targetHeight + float32(math.Sin(float64(p.Pitch)))*p.CameraDistance
+	camZ := p.Position.Z - float32(math.Cos(float64(p.Yaw))*math.Cos(float64(p.Pitch)))*p.CameraDistance
 
-	p.Camera.Target = rl.Vector3Add(p.Camera.Position, lookDir)
+	p.Camera.Position = rl.NewVector3(camX, camY, camZ)
 
 	// Raycasting para colocar/remover blocos
 	p.RaycastBlocks(world)
@@ -200,6 +205,39 @@ func (p *Player) Update(dt float32, world *World) {
 		// Colocar bloco
 		world.SetBlock(int32(p.PlaceBlock.X), int32(p.PlaceBlock.Y), int32(p.PlaceBlock.Z), BlockStone)
 	}
+}
+
+func (p *Player) RenderPlayer() {
+	// Desenhar cápsula representando o jogador
+	// Corpo (cilindro)
+	bodyHeight := p.Height - p.Radius*2
+	bodyPos := rl.NewVector3(p.Position.X, p.Position.Y+p.Radius+bodyHeight/2, p.Position.Z)
+	rl.DrawCylinder(bodyPos, p.Radius, p.Radius, bodyHeight, 8, rl.Blue)
+	rl.DrawCylinderWires(bodyPos, p.Radius, p.Radius, bodyHeight, 8, rl.DarkBlue)
+
+	// Esfera superior (cabeça)
+	topSpherePos := rl.NewVector3(p.Position.X, p.Position.Y+p.Height-p.Radius, p.Position.Z)
+	rl.DrawSphere(topSpherePos, p.Radius, rl.Blue)
+	rl.DrawSphereWires(topSpherePos, p.Radius, 8, 8, rl.DarkBlue)
+
+	// Esfera inferior (pés)
+	bottomSpherePos := rl.NewVector3(p.Position.X, p.Position.Y+p.Radius, p.Position.Z)
+	rl.DrawSphere(bottomSpherePos, p.Radius, rl.Blue)
+	rl.DrawSphereWires(bottomSpherePos, p.Radius, 8, 8, rl.DarkBlue)
+
+	// Indicador de direção (pequeno cubo na frente)
+	dirX := float32(math.Sin(float64(p.Yaw))) * (p.Radius + 0.1)
+	dirZ := float32(math.Cos(float64(p.Yaw))) * (p.Radius + 0.1)
+	dirPos := rl.NewVector3(p.Position.X+dirX, p.Position.Y+p.Height/2, p.Position.Z+dirZ)
+	rl.DrawCube(dirPos, 0.1, 0.1, 0.1, rl.Red)
+
+	// Visualizar cilindro de colisão (semi-transparente)
+	collisionPos := rl.NewVector3(p.Position.X, p.Position.Y+p.Height/2, p.Position.Z)
+	rl.DrawCylinderWires(collisionPos, p.Radius, p.Radius, p.Height, 12, rl.Yellow)
+
+	// Desenhar círculo no chão mostrando o raio de colisão
+	floorPos := rl.NewVector3(p.Position.X, p.Position.Y+0.01, p.Position.Z)
+	rl.DrawCircle3D(floorPos, p.Radius, rl.NewVector3(1, 0, 0), 90, rl.Fade(rl.Yellow, 0.3))
 }
 
 func (p *Player) ApplyMovement(dt float32, world *World) {
@@ -237,19 +275,34 @@ func (p *Player) ApplyMovement(dt float32, world *World) {
 }
 
 func (p *Player) CheckCollision(newPos rl.Vector3, world *World) bool {
-	// Verificar colisão com blocos ao redor do jogador
+	// Verificar colisão cilíndrica apropriada
 	minX := int32(math.Floor(float64(newPos.X - p.Radius)))
-	maxX := int32(math.Ceil(float64(newPos.X + p.Radius)))
+	maxX := int32(math.Floor(float64(newPos.X + p.Radius)))
 	minY := int32(math.Floor(float64(newPos.Y)))
-	maxY := int32(math.Ceil(float64(newPos.Y + p.Height)))
+	maxY := int32(math.Floor(float64(newPos.Y + p.Height)))
 	minZ := int32(math.Floor(float64(newPos.Z - p.Radius)))
-	maxZ := int32(math.Ceil(float64(newPos.Z + p.Radius)))
+	maxZ := int32(math.Floor(float64(newPos.Z + p.Radius)))
 
 	for x := minX; x <= maxX; x++ {
 		for y := minY; y <= maxY; y++ {
 			for z := minZ; z <= maxZ; z++ {
 				if world.GetBlock(x, y, z) != BlockAir {
-					return true
+					// Verificar se realmente colide com o cilindro do jogador
+					// Centro do bloco
+					blockCenterX := float32(x) + 0.5
+					blockCenterZ := float32(z) + 0.5
+
+					// Distância horizontal do centro do jogador ao centro do bloco
+					dx := newPos.X - blockCenterX
+					dz := newPos.Z - blockCenterZ
+					distSq := dx*dx + dz*dz
+
+					// Colisão cilíndrica: verificar se a distância é menor que a soma dos raios
+					// (raio do jogador + raio do bloco que é 0.5)
+					maxDist := p.Radius + 0.5
+					if distSq < maxDist*maxDist {
+						return true
+					}
 				}
 			}
 		}
@@ -259,8 +312,21 @@ func (p *Player) CheckCollision(newPos rl.Vector3, world *World) bool {
 }
 
 func (p *Player) RaycastBlocks(world *World) {
-	// Raycast a partir da câmera usando algoritmo DDA
-	rayOrigin := p.Camera.Position
+	// Raycast a partir de uma posição de mira de ombro (sobre o ombro direito)
+	eyeHeight := float32(1.5)
+	shoulderOffset := float32(0.3) // Offset para a direita
+	shoulderUp := float32(0.2)     // Offset para cima
+
+	// Calcular direção "direita" baseada no yaw
+	rightX := float32(math.Cos(float64(p.Yaw)))
+	rightZ := float32(-math.Sin(float64(p.Yaw)))
+
+	// Posição de mira sobre o ombro direito
+	rayOrigin := rl.NewVector3(
+		p.Position.X + rightX*shoulderOffset,
+		p.Position.Y + eyeHeight + shoulderUp,
+		p.Position.Z + rightZ*shoulderOffset,
+	)
 	rayDir := rl.Vector3Normalize(rl.Vector3Subtract(p.Camera.Target, p.Camera.Position))
 
 	maxDistance := float32(8.0)
