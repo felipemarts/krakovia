@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"math"
+	"unsafe"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
 )
@@ -70,7 +71,7 @@ func main() {
 		rl.DrawText("WASD - Mover | Espaço - Pular | Mouse - Olhar", 10, 10, 20, rl.Black)
 		rl.DrawText("Click Esquerdo - Remover | Click Direito - Colocar", 10, 35, 20, rl.Black)
 		rl.DrawText(fmt.Sprintf("Posição: (%.1f, %.1f, %.1f)", player.Position.X, player.Position.Y, player.Position.Z), 10, 60, 20, rl.Black)
-		rl.DrawText(fmt.Sprintf("Blocos: Grass=%d Dirt=%d Stone=%d", len(world.GrassTransforms), len(world.DirtTransforms), len(world.StoneTransforms)), 10, 85, 20, rl.Black)
+		rl.DrawText(fmt.Sprintf("Blocos: %d total", len(world.BlockTransforms)), 10, 85, 20, rl.Black)
 		rl.DrawText(fmt.Sprintf("FPS: %d", rl.GetFPS()), 10, screenHeight-30, 20, rl.Green)
 
 		// Crosshair
@@ -441,18 +442,18 @@ func (p *Player) RaycastBlocks(world *World) {
 
 // World representa o mundo voxel
 type World struct {
-	Blocks            map[int64]BlockType
-	SizeX             int32
-	SizeY             int32
-	SizeZ             int32
-	CubeMesh          rl.Mesh
-	GrassMaterial     rl.Material
-	DirtMaterial      rl.Material
-	StoneMaterial     rl.Material
-	GrassTransforms   []rl.Matrix
-	DirtTransforms    []rl.Matrix
-	StoneTransforms   []rl.Matrix
-	NeedUpdateMeshes  bool
+	Blocks           map[int64]BlockType
+	SizeX            int32
+	SizeY            int32
+	SizeZ            int32
+	GrassMesh        rl.Mesh
+	DirtMesh         rl.Mesh
+	StoneMesh        rl.Mesh
+	Material         rl.Material
+	TextureAtlas     rl.Texture2D
+	BlockTransforms  []rl.Matrix
+	BlockTypes       []BlockType
+	NeedUpdateMeshes bool
 }
 
 type BlockType uint8
@@ -477,21 +478,23 @@ func NewWorld() *World {
 
 // InitWorldGraphics inicializa recursos gráficos do mundo (deve ser chamado após rl.InitWindow)
 func (w *World) InitWorldGraphics() {
-	// Criar mesh de cubo unitário
-	w.CubeMesh = rl.GenMeshCube(1.0, 1.0, 1.0)
+	// Carregar texture atlas
+	w.TextureAtlas = rl.LoadTexture("texture_atlas.png")
 
-	// IMPORTANTE: Upload da mesh para a GPU
-	rl.UploadMesh(&w.CubeMesh, false)
+	// Configurar filtro de textura para pixel art (sem blur)
+	rl.SetTextureFilter(w.TextureAtlas, rl.FilterPoint)
 
-	// Criar materiais com cores diferentes
-	w.GrassMaterial = rl.LoadMaterialDefault()
-	w.GrassMaterial.Maps.Color = rl.Green
+	// Criar material com textura
+	w.Material = rl.LoadMaterialDefault()
 
-	w.DirtMaterial = rl.LoadMaterialDefault()
-	w.DirtMaterial.Maps.Color = rl.Brown
+	// IMPORTANTE: Definir a textura no mapa de difusa do material
+	diffuseMap := w.Material.GetMap(rl.MapDiffuse)
+	diffuseMap.Texture = w.TextureAtlas
 
-	w.StoneMaterial = rl.LoadMaterialDefault()
-	w.StoneMaterial.Maps.Color = rl.Gray
+	// Criar meshes com UVs customizadas para cada tipo de bloco
+	w.GrassMesh = CreateTexturedCubeMesh(BlockGrass)
+	w.DirtMesh = CreateTexturedCubeMesh(BlockDirt)
+	w.StoneMesh = CreateTexturedCubeMesh(BlockStone)
 }
 
 func (w *World) GetBlockIndex(x, y, z int32) int64 {
@@ -546,12 +549,11 @@ func (w *World) GenerateTerrain() {
 	}
 }
 
-// UpdateMeshes atualiza os arrays de transformações para instancing
+// UpdateMeshes atualiza os arrays de transformações
 func (w *World) UpdateMeshes() {
 	// Limpar arrays
-	w.GrassTransforms = w.GrassTransforms[:0]
-	w.DirtTransforms = w.DirtTransforms[:0]
-	w.StoneTransforms = w.StoneTransforms[:0]
+	w.BlockTransforms = w.BlockTransforms[:0]
+	w.BlockTypes = w.BlockTypes[:0]
 
 	// Iterar por todos os blocos e criar matrizes de transformação
 	for idx, blockType := range w.Blocks {
@@ -579,18 +581,91 @@ func (w *World) UpdateMeshes() {
 		// Centralizar o cubo (+0.5 em cada eixo)
 		transform := rl.MatrixTranslate(float32(x)+0.5, float32(y)+0.5, float32(z)+0.5)
 
-		// Adicionar ao array apropriado baseado no tipo
-		switch blockType {
-		case BlockGrass:
-			w.GrassTransforms = append(w.GrassTransforms, transform)
-		case BlockDirt:
-			w.DirtTransforms = append(w.DirtTransforms, transform)
-		case BlockStone:
-			w.StoneTransforms = append(w.StoneTransforms, transform)
-		}
+		// Adicionar aos arrays
+		w.BlockTransforms = append(w.BlockTransforms, transform)
+		w.BlockTypes = append(w.BlockTypes, blockType)
 	}
 
 	w.NeedUpdateMeshes = false
+}
+
+// GetBlockUVs retorna as coordenadas UV normalizadas (0-1) para um tipo de bloco
+// Atlas é 8x8, cada textura 32x32 pixels (256x256 total)
+func GetBlockUVs(blockType BlockType) (uMin, vMin, uMax, vMax float32) {
+	// Mapeamento: linha e coluna no atlas 8x8
+	var row, col int32
+
+	switch blockType {
+	case BlockGrass:
+		row, col = 1, 1 // Segunda linha, segunda coluna (grass top)
+	case BlockDirt:
+		row, col = 1, 0 // Segunda linha, primeira coluna (dirt)
+	case BlockStone:
+		row, col = 1, 2 // Segunda linha, terceira coluna (stone)
+	default:
+		row, col = 0, 0 // Default: primeira textura
+	}
+
+	// Atlas 8x8, cada tile é 1/8 do tamanho total
+	tileSize := float32(1.0 / 8.0)
+
+	uMin = float32(col) * tileSize
+	vMin = float32(row) * tileSize
+	uMax = uMin + tileSize
+	vMax = vMin + tileSize
+
+	return
+}
+
+// CreateTexturedCubeMesh cria uma mesh de cubo com UVs para o texture atlas
+func CreateTexturedCubeMesh(blockType BlockType) rl.Mesh {
+	// Não usar GenMeshCube pois ele já faz upload automático
+	// Vamos criar a mesh manualmente
+	mesh := rl.Mesh{}
+	mesh.VertexCount = 24
+	mesh.TriangleCount = 12
+
+	// Obter UVs para o tipo de bloco
+	uMin, vMin, uMax, vMax := GetBlockUVs(blockType)
+
+	// Debug: imprimir os UVs calculados
+	fmt.Printf("Bloco %v: UV=[%.3f,%.3f] -> [%.3f,%.3f]\n", blockType, uMin, vMin, uMax, vMax)
+
+	// Gerar mesh base e pegar UVs padrão
+	tempMesh := rl.GenMeshCube(1.0, 1.0, 1.0)
+
+	// Copiar dados da mesh temporária
+	mesh.Vertices = tempMesh.Vertices
+	mesh.Normals = tempMesh.Normals
+	mesh.Indices = tempMesh.Indices
+
+	// Criar novos UVs modificados
+	if tempMesh.Texcoords != nil {
+		// Converter ponteiro para slice
+		oldTexcoords := unsafe.Slice(tempMesh.Texcoords, tempMesh.VertexCount*2)
+
+		// Alocar novo array de UVs
+		newTexcoords := make([]float32, mesh.VertexCount*2)
+
+		// Aplicar UVs para todos os vértices
+		for i := int32(0); i < mesh.VertexCount; i++ {
+			// Pegar UV original (0-1)
+			origU := oldTexcoords[i*2]
+			origV := oldTexcoords[i*2+1]
+
+			// Mapear para a região do atlas
+			newTexcoords[i*2] = uMin + origU*(uMax-uMin)
+			newTexcoords[i*2+1] = vMin + origV*(vMax-vMin)
+		}
+
+		// Atribuir novo array
+		mesh.Texcoords = &newTexcoords[0]
+	}
+
+	// Upload para GPU
+	rl.UploadMesh(&mesh, false)
+
+	return mesh
 }
 
 func (w *World) Render() {
@@ -599,22 +674,22 @@ func (w *World) Render() {
 		w.UpdateMeshes()
 	}
 
-	// Renderizar blocos de grama
-	for i := 0; i < len(w.GrassTransforms); i++ {
-		// Extrair posição da matriz de transformação
-		pos := rl.NewVector3(w.GrassTransforms[i].M12, w.GrassTransforms[i].M13, w.GrassTransforms[i].M14)
-		rl.DrawCubeV(pos, rl.NewVector3(1, 1, 1), rl.Green)
-	}
+	// Renderizar todos os blocos com textura
+	for i := 0; i < len(w.BlockTransforms); i++ {
+		// Selecionar mesh baseado no tipo de bloco
+		var mesh rl.Mesh
+		switch w.BlockTypes[i] {
+		case BlockGrass:
+			mesh = w.GrassMesh
+		case BlockDirt:
+			mesh = w.DirtMesh
+		case BlockStone:
+			mesh = w.StoneMesh
+		default:
+			mesh = w.GrassMesh
+		}
 
-	// Renderizar blocos de terra
-	for i := 0; i < len(w.DirtTransforms); i++ {
-		pos := rl.NewVector3(w.DirtTransforms[i].M12, w.DirtTransforms[i].M13, w.DirtTransforms[i].M14)
-		rl.DrawCubeV(pos, rl.NewVector3(1, 1, 1), rl.Brown)
-	}
-
-	// Renderizar blocos de pedra
-	for i := 0; i < len(w.StoneTransforms); i++ {
-		pos := rl.NewVector3(w.StoneTransforms[i].M12, w.StoneTransforms[i].M13, w.StoneTransforms[i].M14)
-		rl.DrawCubeV(pos, rl.NewVector3(1, 1, 1), rl.Gray)
+		// Desenhar mesh com textura
+		rl.DrawMesh(mesh, w.Material, w.BlockTransforms[i])
 	}
 }
