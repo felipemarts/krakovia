@@ -26,6 +26,9 @@ func main() {
 	// Inicializar mundo
 	world := NewWorld()
 
+	// Inicializar gráficos do mundo (depois de InitWindow)
+	world.InitWorldGraphics()
+
 	// Gerar terreno inicial
 	world.GenerateTerrain()
 
@@ -67,6 +70,7 @@ func main() {
 		rl.DrawText("WASD - Mover | Espaço - Pular | Mouse - Olhar", 10, 10, 20, rl.Black)
 		rl.DrawText("Click Esquerdo - Remover | Click Direito - Colocar", 10, 35, 20, rl.Black)
 		rl.DrawText(fmt.Sprintf("Posição: (%.1f, %.1f, %.1f)", player.Position.X, player.Position.Y, player.Position.Z), 10, 60, 20, rl.Black)
+		rl.DrawText(fmt.Sprintf("Blocos: Grass=%d Dirt=%d Stone=%d", len(world.GrassTransforms), len(world.DirtTransforms), len(world.StoneTransforms)), 10, 85, 20, rl.Black)
 		rl.DrawText(fmt.Sprintf("FPS: %d", rl.GetFPS()), 10, screenHeight-30, 20, rl.Green)
 
 		// Crosshair
@@ -437,10 +441,18 @@ func (p *Player) RaycastBlocks(world *World) {
 
 // World representa o mundo voxel
 type World struct {
-	Blocks map[int64]BlockType
-	SizeX  int32
-	SizeY  int32
-	SizeZ  int32
+	Blocks            map[int64]BlockType
+	SizeX             int32
+	SizeY             int32
+	SizeZ             int32
+	CubeMesh          rl.Mesh
+	GrassMaterial     rl.Material
+	DirtMaterial      rl.Material
+	StoneMaterial     rl.Material
+	GrassTransforms   []rl.Matrix
+	DirtTransforms    []rl.Matrix
+	StoneTransforms   []rl.Matrix
+	NeedUpdateMeshes  bool
 }
 
 type BlockType uint8
@@ -453,12 +465,33 @@ const (
 )
 
 func NewWorld() *World {
-	return &World{
-		Blocks: make(map[int64]BlockType),
-		SizeX:  32,
-		SizeY:  64,
-		SizeZ:  32,
+	w := &World{
+		Blocks:           make(map[int64]BlockType),
+		SizeX:            32,
+		SizeY:            64,
+		SizeZ:            32,
+		NeedUpdateMeshes: true,
 	}
+	return w
+}
+
+// InitWorldGraphics inicializa recursos gráficos do mundo (deve ser chamado após rl.InitWindow)
+func (w *World) InitWorldGraphics() {
+	// Criar mesh de cubo unitário
+	w.CubeMesh = rl.GenMeshCube(1.0, 1.0, 1.0)
+
+	// IMPORTANTE: Upload da mesh para a GPU
+	rl.UploadMesh(&w.CubeMesh, false)
+
+	// Criar materiais com cores diferentes
+	w.GrassMaterial = rl.LoadMaterialDefault()
+	w.GrassMaterial.Maps.Color = rl.Green
+
+	w.DirtMaterial = rl.LoadMaterialDefault()
+	w.DirtMaterial.Maps.Color = rl.Brown
+
+	w.StoneMaterial = rl.LoadMaterialDefault()
+	w.StoneMaterial.Maps.Color = rl.Gray
 }
 
 func (w *World) GetBlockIndex(x, y, z int32) int64 {
@@ -476,6 +509,9 @@ func (w *World) SetBlock(x, y, z int32, block BlockType) {
 	} else {
 		w.Blocks[idx] = block
 	}
+
+	// Marcar que as meshes precisam ser atualizadas
+	w.NeedUpdateMeshes = true
 }
 
 func (w *World) GetBlock(x, y, z int32) BlockType {
@@ -510,8 +546,14 @@ func (w *World) GenerateTerrain() {
 	}
 }
 
-func (w *World) Render() {
-	// Renderizar todos os blocos
+// UpdateMeshes atualiza os arrays de transformações para instancing
+func (w *World) UpdateMeshes() {
+	// Limpar arrays
+	w.GrassTransforms = w.GrassTransforms[:0]
+	w.DirtTransforms = w.DirtTransforms[:0]
+	w.StoneTransforms = w.StoneTransforms[:0]
+
+	// Iterar por todos os blocos e criar matrizes de transformação
 	for idx, blockType := range w.Blocks {
 		if blockType == BlockAir {
 			continue
@@ -533,24 +575,46 @@ func (w *World) Render() {
 			z -= 0x100000
 		}
 
-		// Centralizar o cubo (DrawCubeV desenha do centro)
-		pos := rl.NewVector3(float32(x)+0.5, float32(y)+0.5, float32(z)+0.5)
+		// Criar matriz de transformação (translação para a posição do bloco)
+		// Centralizar o cubo (+0.5 em cada eixo)
+		transform := rl.MatrixTranslate(float32(x)+0.5, float32(y)+0.5, float32(z)+0.5)
 
-		// Escolher cor baseada no tipo
-		var color rl.Color
+		// Adicionar ao array apropriado baseado no tipo
 		switch blockType {
 		case BlockGrass:
-			color = rl.Green
+			w.GrassTransforms = append(w.GrassTransforms, transform)
 		case BlockDirt:
-			color = rl.Brown
+			w.DirtTransforms = append(w.DirtTransforms, transform)
 		case BlockStone:
-			color = rl.Gray
-		default:
-			color = rl.White
+			w.StoneTransforms = append(w.StoneTransforms, transform)
 		}
+	}
 
-		// Desenhar cubo
-		rl.DrawCubeV(pos, rl.NewVector3(1, 1, 1), color)
-		rl.DrawCubeWiresV(pos, rl.NewVector3(1.01, 1.01, 1.01), rl.Black)
+	w.NeedUpdateMeshes = false
+}
+
+func (w *World) Render() {
+	// Atualizar meshes se necessário
+	if w.NeedUpdateMeshes {
+		w.UpdateMeshes()
+	}
+
+	// Renderizar blocos de grama
+	for i := 0; i < len(w.GrassTransforms); i++ {
+		// Extrair posição da matriz de transformação
+		pos := rl.NewVector3(w.GrassTransforms[i].M12, w.GrassTransforms[i].M13, w.GrassTransforms[i].M14)
+		rl.DrawCubeV(pos, rl.NewVector3(1, 1, 1), rl.Green)
+	}
+
+	// Renderizar blocos de terra
+	for i := 0; i < len(w.DirtTransforms); i++ {
+		pos := rl.NewVector3(w.DirtTransforms[i].M12, w.DirtTransforms[i].M13, w.DirtTransforms[i].M14)
+		rl.DrawCubeV(pos, rl.NewVector3(1, 1, 1), rl.Brown)
+	}
+
+	// Renderizar blocos de pedra
+	for i := 0; i < len(w.StoneTransforms); i++ {
+		pos := rl.NewVector3(w.StoneTransforms[i].M12, w.StoneTransforms[i].M13, w.StoneTransforms[i].M14)
+		rl.DrawCubeV(pos, rl.NewVector3(1, 1, 1), rl.Gray)
 	}
 }
