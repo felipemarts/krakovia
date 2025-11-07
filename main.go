@@ -14,7 +14,7 @@ func main() {
 	rl.DisableCursor()
 
 	// Inicializar jogador
-	player := NewPlayer(rl.NewVector3(-42, 11, 30))
+	player := NewPlayer(rl.NewVector3(16, 16, 16))
 
 	// Inicializar mundo
 	world := NewWorld()
@@ -69,17 +69,28 @@ func main() {
 
 // renderUI desenha a interface do usuário
 func renderUI(player *Player, world *World) {
-	rl.DrawText("WASD - Mover | Espaço - Pular | Mouse - Olhar", 10, 10, 20, rl.Black)
+	rl.DrawText("WASD - Mover | Espaço - Pular | Mouse - Olhar | P - Fly Mode", 10, 10, 20, rl.Black)
 	rl.DrawText("Click Esquerdo - Remover | Click Direito - Colocar", 10, 35, 20, rl.Black)
-	rl.DrawText(fmt.Sprintf("Posição: (%.1f, %.1f, %.1f)", player.Position.X, player.Position.Y, player.Position.Z), 10, 60, 20, rl.Black)
+
+	yOffset := int32(60)
+
+	// Mostrar status do modo fly
+	if player.FlyMode {
+		rl.DrawText("FLY MODE ATIVO | Shift - Subir | Ctrl - Descer", 10, yOffset, 20, rl.Red)
+		yOffset += 25
+	}
+
+	rl.DrawText(fmt.Sprintf("Posição: (%.1f, %.1f, %.1f)", player.Position.X, player.Position.Y, player.Position.Z), 10, yOffset, 20, rl.Black)
+	yOffset += 25
 
 	// Mostrar chunk atual do jogador
 	playerChunk := GetChunkCoordFromFloat(player.Position.X, player.Position.Y, player.Position.Z)
-	rl.DrawText(fmt.Sprintf("Chunk: (%d, %d, %d)", playerChunk.X, playerChunk.Y, playerChunk.Z), 10, 85, 20, rl.Black)
+	rl.DrawText(fmt.Sprintf("Chunk: (%d, %d, %d)", playerChunk.X, playerChunk.Y, playerChunk.Z), 10, yOffset, 20, rl.Black)
+	yOffset += 25
 
 	totalBlocks := world.GetTotalBlocks()
 	chunksLoaded := world.GetLoadedChunksCount()
-	rl.DrawText(fmt.Sprintf("Blocos: %d | Chunks: %d", totalBlocks, chunksLoaded), 10, 110, 20, rl.Black)
+	rl.DrawText(fmt.Sprintf("Blocos: %d | Chunks: %d", totalBlocks, chunksLoaded), 10, yOffset, 20, rl.Black)
 	rl.DrawText(fmt.Sprintf("FPS: %d", rl.GetFPS()), 10, screenHeight-30, 20, rl.Green)
 
 	// Crosshair

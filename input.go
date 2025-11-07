@@ -12,6 +12,9 @@ type Input interface {
 	IsJumpPressed() bool
 	IsLeftClickPressed() bool
 	IsRightClickPressed() bool
+	IsFlyTogglePressed() bool
+	IsFlyUpPressed() bool
+	IsFlyDownPressed() bool
 	GetMouseDelta() rl.Vector2
 }
 
@@ -50,6 +53,18 @@ func (r *RaylibInput) GetMouseDelta() rl.Vector2 {
 	return rl.GetMouseDelta()
 }
 
+func (r *RaylibInput) IsFlyTogglePressed() bool {
+	return rl.IsKeyPressed(rl.KeyP)
+}
+
+func (r *RaylibInput) IsFlyUpPressed() bool {
+	return rl.IsKeyDown(rl.KeyLeftShift) || rl.IsKeyDown(rl.KeyRightShift)
+}
+
+func (r *RaylibInput) IsFlyDownPressed() bool {
+	return rl.IsKeyDown(rl.KeyLeftControl) || rl.IsKeyDown(rl.KeyRightControl)
+}
+
 // SimulatedInput implementa Input para testes
 type SimulatedInput struct {
 	Forward    bool
@@ -59,6 +74,9 @@ type SimulatedInput struct {
 	Jump       bool
 	LeftClick  bool
 	RightClick bool
+	FlyToggle  bool
+	FlyUp      bool
+	FlyDown    bool
 	MouseDelta rl.Vector2
 }
 
@@ -100,4 +118,18 @@ func (s *SimulatedInput) GetMouseDelta() rl.Vector2 {
 	delta := s.MouseDelta
 	s.MouseDelta = rl.NewVector2(0, 0) // Reset após leitura
 	return delta
+}
+
+func (s *SimulatedInput) IsFlyTogglePressed() bool {
+	result := s.FlyToggle
+	s.FlyToggle = false
+	return result
+}
+
+func (s *SimulatedInput) IsFlyUpPressed() bool {
+	return s.FlyUp
+}
+
+func (s *SimulatedInput) IsFlyDownPressed() bool {
+	return s.FlyDown
 }

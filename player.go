@@ -20,6 +20,7 @@ type Player struct {
 	Height         float32
 	Radius         float32
 	CameraDistance float32
+	FlyMode        bool
 }
 
 func NewPlayer(position rl.Vector3) *Player {
@@ -46,6 +47,15 @@ func NewPlayer(position rl.Vector3) *Player {
 }
 
 func (p *Player) Update(dt float32, world *World, input Input) {
+	// Toggle fly mode com tecla P
+	if input.IsFlyTogglePressed() {
+		p.FlyMode = !p.FlyMode
+		if p.FlyMode {
+			// Ao ativar fly mode, zerar velocidade vertical
+			p.Velocity.Y = 0
+		}
+	}
+
 	// Controle do mouse
 	mouseDelta := input.GetMouseDelta()
 	sensitivity := float32(0.003)
@@ -99,18 +109,37 @@ func (p *Player) Update(dt float32, world *World, input Input) {
 	p.Velocity.X = moveInput.X
 	p.Velocity.Z = moveInput.Z
 
-	// Gravidade
-	gravity := float32(-20.0)
-	p.Velocity.Y += gravity * dt
+	// Lógica de física diferente baseado no modo fly
+	if p.FlyMode {
+		// No modo fly: sem gravidade, controle vertical com Shift/Ctrl
+		flySpeed := float32(15.0)
+		p.Velocity.Y = 0
 
-	// Pulo
-	if input.IsJumpPressed() && p.IsOnGround {
-		p.Velocity.Y = 8.0
-		p.IsOnGround = false
+		if input.IsFlyUpPressed() {
+			p.Velocity.Y = flySpeed
+		}
+		if input.IsFlyDownPressed() {
+			p.Velocity.Y = -flySpeed
+		}
+
+		// No modo fly, aplicar movimento sem colisões
+		p.Position.X += p.Velocity.X * dt
+		p.Position.Y += p.Velocity.Y * dt
+		p.Position.Z += p.Velocity.Z * dt
+	} else {
+		// Modo normal: gravidade e colisões ativas
+		gravity := float32(-20.0)
+		p.Velocity.Y += gravity * dt
+
+		// Pulo
+		if input.IsJumpPressed() && p.IsOnGround {
+			p.Velocity.Y = 8.0
+			p.IsOnGround = false
+		}
+
+		// Aplicar velocidade com detecção de colisão
+		p.ApplyMovement(dt, world)
 	}
-
-	// Aplicar velocidade com detecção de colisão
-	p.ApplyMovement(dt, world)
 
 	// Atualizar câmera em terceira pessoa
 	targetHeight := float32(1.0)

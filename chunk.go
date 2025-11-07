@@ -62,21 +62,15 @@ func (c *Chunk) SetBlock(x, y, z int32, block BlockType) {
 
 // GenerateTerrain gera o terreno para este chunk
 func (c *Chunk) GenerateTerrain() {
-	// Posição mundial do chunk
-	worldY := c.Coord.Y * ChunkHeight
+	// Criar um bloco 8x8x8 no centro de cada chunk
+	// Centro do chunk: posições 12-19 (32/2 - 4 até 32/2 + 3)
+	centerStart := int32(12)
+	centerEnd := int32(20) // Exclusivo, então 12-19 inclusive = 8 blocos
 
-	// Mundo plano com apenas 1 bloco de espessura na altura y=10
-	flatHeight := int32(10)
-
-	// Verificar se este chunk contém a altura do plano
-	if worldY <= flatHeight && worldY+ChunkHeight > flatHeight {
-		// Calcular y local dentro do chunk
-		localY := flatHeight - worldY
-
-		// Criar camada plana de grama diretamente (sem SetBlock para evitar marcar NeedUpdateMeshes múltiplas vezes)
-		for x := int32(0); x < ChunkSize; x++ {
-			for z := int32(0); z < ChunkSize; z++ {
-				c.Blocks[x][localY][z] = BlockGrass
+	for x := centerStart; x < centerEnd; x++ {
+		for y := centerStart; y < centerEnd; y++ {
+			for z := centerStart; z < centerEnd; z++ {
+				c.Blocks[x][y][z] = BlockStone
 			}
 		}
 	}
