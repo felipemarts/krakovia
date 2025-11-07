@@ -62,15 +62,46 @@ func (c *Chunk) SetBlock(x, y, z int32, block BlockType) {
 
 // GenerateTerrain gera o terreno para este chunk
 func (c *Chunk) GenerateTerrain() {
-	// Criar um bloco 8x8x8 no centro de cada chunk
-	// Centro do chunk: posições 12-19 (32/2 - 4 até 32/2 + 3)
-	centerStart := int32(12)
-	centerEnd := int32(20) // Exclusivo, então 12-19 inclusive = 8 blocos
+	// Posição mundial do chunk
+	worldX := c.Coord.X * ChunkSize
+	worldZ := c.Coord.Z * ChunkSize
+	worldY := c.Coord.Y * ChunkHeight
 
-	for x := centerStart; x < centerEnd; x++ {
-		for y := centerStart; y < centerEnd; y++ {
-			for z := centerStart; z < centerEnd; z++ {
-				c.Blocks[x][y][z] = BlockStone
+	// Altura base do terreno
+	baseHeight := int32(10)
+
+	// Gerar terreno apenas se este chunk pode conter o terreno
+	if worldY <= baseHeight+3 && worldY+ChunkHeight > baseHeight-3 {
+		for x := int32(0); x < ChunkSize; x++ {
+			for z := int32(0); z < ChunkSize; z++ {
+				// Calcular posição mundial do bloco
+				wx := worldX + x
+				wz := worldZ + z
+
+				// Usar noise simples baseado em seno para criar ondulações
+				// Combinar múltiplas frequências para terreno mais interessante
+				noise := math.Sin(float64(wx)*0.1) * math.Cos(float64(wz)*0.1)
+				noise += math.Sin(float64(wx)*0.05) * math.Cos(float64(wz)*0.05) * 0.5
+
+				// Converter noise (-1 a 1) para variação de altura (0 a 3 blocos)
+				heightVariation := int32(noise * 1.5)
+				terrainHeight := baseHeight + heightVariation
+
+				// Preencher blocos até a altura do terreno
+				for y := int32(0); y < ChunkHeight; y++ {
+					worldBlockY := worldY + y
+
+					if worldBlockY < terrainHeight-2 {
+						// Camadas inferiores: pedra
+						c.Blocks[x][y][z] = BlockStone
+					} else if worldBlockY < terrainHeight {
+						// Camadas intermediárias: terra
+						c.Blocks[x][y][z] = BlockDirt
+					} else if worldBlockY == terrainHeight {
+						// Superfície: grama
+						c.Blocks[x][y][z] = BlockGrass
+					}
+				}
 			}
 		}
 	}
