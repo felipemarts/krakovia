@@ -282,7 +282,14 @@ func (p *Player) CheckCollision(newPos rl.Vector3, world *World) bool {
 	for x := minX; x <= maxX; x++ {
 		for y := minY; y <= maxY; y++ {
 			for z := minZ; z <= maxZ; z++ {
-				if world.GetBlock(x, y, z) != BlockAir {
+				blockType := world.GetBlock(x, y, z)
+				if blockType != BlockAir {
+					// Otimização: ignorar colisão com blocos completamente ocultos
+					// (eles não podem ser alcançados pelo jogador)
+					if world.IsBlockHidden(x, y, z) {
+						continue
+					}
+
 					// Verificar se realmente colide com o cilindro do jogador
 					// Centro do bloco
 					blockCenterX := float32(x) + 0.5

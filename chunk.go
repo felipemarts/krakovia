@@ -108,11 +108,42 @@ func (c *Chunk) GenerateTerrain() {
 
 	c.IsGenerated = true
 	c.NeedUpdateMeshes = true
-	// Gerar meshes imediatamente após gerar terreno
-	c.UpdateMeshes()
+	// Meshes serão atualizadas no primeiro render
+}
+
+// IsBlockHiddenLocal verifica oclusão apenas dentro do chunk (otimização parcial)
+// NOTA: Não considera chunks vizinhos - use UpdateMeshesWithNeighbors para oclusão completa
+func (c *Chunk) IsBlockHiddenLocal(x, y, z int32) bool {
+	// Verificar todas as 6 direções (cima, baixo, norte, sul, leste, oeste)
+	directions := []struct{ dx, dy, dz int32 }{
+		{1, 0, 0},  // Direita
+		{-1, 0, 0}, // Esquerda
+		{0, 1, 0},  // Cima
+		{0, -1, 0}, // Baixo
+		{0, 0, 1},  // Frente
+		{0, 0, -1}, // Trás
+	}
+
+	for _, dir := range directions {
+		nx, ny, nz := x+dir.dx, y+dir.dy, z+dir.dz
+
+		// Se o vizinho está fora do chunk, considerar como exposto (visível)
+		if nx < 0 || nx >= ChunkSize || ny < 0 || ny >= ChunkHeight || nz < 0 || nz >= ChunkSize {
+			return false
+		}
+
+		// Se o vizinho é ar, o bloco está exposto (visível)
+		if c.Blocks[nx][ny][nz] == BlockAir {
+			return false
+		}
+	}
+
+	// Todas as 6 faces estão bloqueadas - bloco está completamente oculto
+	return true
 }
 
 // UpdateMeshes atualiza os arrays de transformações agrupados por tipo de bloco
+// Nota: Esta versão não considera chunks vizinhos para oclusão (otimização parcial)
 func (c *Chunk) UpdateMeshes() {
 	// Limpar arrays (reutilizar memória)
 	c.GrassTransforms = c.GrassTransforms[:0]
@@ -130,6 +161,12 @@ func (c *Chunk) UpdateMeshes() {
 			for z := int32(0); z < ChunkSize; z++ {
 				blockType := c.Blocks[x][y][z]
 				if blockType == BlockAir {
+					continue
+				}
+
+				// Otimização: não renderizar blocos completamente ocultos
+				// NOTA: Só verifica dentro do chunk - blocos na borda podem ser ocultos por chunks vizinhos
+				if c.IsBlockHiddenLocal(x, y, z) {
 					continue
 				}
 
@@ -158,10 +195,76 @@ func (c *Chunk) UpdateMeshes() {
 	c.NeedUpdateMeshes = false
 }
 
+// UpdateMeshesWithNeighbors atualiza meshes considerando chunks vizinhos
+func (c *Chunk) UpdateMeshesWithNeighbors(getBlockFunc func(x, y, z int32) BlockType) {
+	// Limpar arrays (reutilizar memória)
+	c.GrassTransforms = c.GrassTransforms[:0]
+	c.DirtTransforms = c.DirtTransforms[:0]
+	c.StoneTransforms = c.StoneTransforms[:0]
+
+	// Posição mundial do chunk
+	worldX := c.Coord.X * ChunkSize
+	worldY := c.Coord.Y * ChunkHeight
+	worldZ := c.Coord.Z * ChunkSize
+
+	// Iterar por todos os blocos do chunk
+	for x := int32(0); x < ChunkSize; x++ {
+		for y := int32(0); y < ChunkHeight; y++ {
+			for z := int32(0); z < ChunkSize; z++ {
+				blockType := c.Blocks[x][y][z]
+				if blockType == BlockAir {
+					continue
+				}
+
+				// Calcular posição mundial do bloco
+				wx := worldX + x
+				wy := worldY + y
+				wz := worldZ + z
+
+				// Verificar se o bloco está completamente oculto considerando chunks vizinhos
+				isHidden := true
+				directions := []struct{ dx, dy, dz int32 }{
+					{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1},
+				}
+
+				for _, dir := range directions {
+					neighborBlock := getBlockFunc(wx+dir.dx, wy+dir.dy, wz+dir.dz)
+					if neighborBlock == BlockAir {
+						isHidden = false
+						break
+					}
+				}
+
+				// Se está oculto, pular este bloco
+				if isHidden {
+					continue
+				}
+
+				// Criar matriz de transformação
+				transform := rl.MatrixTranslate(float32(wx)+0.5, float32(wy)+0.5, float32(wz)+0.5)
+
+				// Adicionar ao array correspondente ao tipo de bloco
+				switch blockType {
+				case BlockGrass:
+					c.GrassTransforms = append(c.GrassTransforms, transform)
+				case BlockDirt:
+					c.DirtTransforms = append(c.DirtTransforms, transform)
+				case BlockStone:
+					c.StoneTransforms = append(c.StoneTransforms, transform)
+				}
+			}
+		}
+	}
+
+	c.NeedUpdateMeshes = false
+}
+
 // Render renderiza o chunk usando instanced rendering
-func (c *Chunk) Render(grassMesh, dirtMesh, stoneMesh rl.Mesh, material rl.Material) {
+func (c *Chunk) Render(grassMesh, dirtMesh, stoneMesh rl.Mesh, material rl.Material, getBlockFunc func(x, y, z int32) BlockType) {
 	// Atualizar meshes se necessário
-	if c.NeedUpdateMeshes {
+	if c.NeedUpdateMeshes && getBlockFunc != nil {
+		c.UpdateMeshesWithNeighbors(getBlockFunc)
+	} else if c.NeedUpdateMeshes {
 		c.UpdateMeshes()
 	}
 

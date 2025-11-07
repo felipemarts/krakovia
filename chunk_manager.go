@@ -79,6 +79,10 @@ func (cm *ChunkManager) LoadChunksAroundPlayer(playerPos rl.Vector3) {
 							chunk.GenerateTerrain()
 							cm.Chunks[key] = chunk
 
+							// Marcar chunks vizinhos para atualização de meshes
+							// pois agora eles têm um novo vizinho
+							cm.MarkNeighborsForUpdate(coord)
+
 							chunksLoadedThisFrame++
 							if chunksLoadedThisFrame >= maxChunksPerFrame {
 								return // Parar de carregar neste frame
@@ -138,6 +142,32 @@ func (cm *ChunkManager) GetBlock(x, y, z int32) BlockType {
 	return chunk.GetBlock(localX, localY, localZ)
 }
 
+// IsBlockHidden verifica se um bloco nas coordenadas mundiais está completamente cercado
+func (cm *ChunkManager) IsBlockHidden(x, y, z int32) bool {
+	// Verificar todas as 6 direções
+	directions := []struct{ dx, dy, dz int32 }{
+		{1, 0, 0},  // Direita
+		{-1, 0, 0}, // Esquerda
+		{0, 1, 0},  // Cima
+		{0, -1, 0}, // Baixo
+		{0, 0, 1},  // Frente
+		{0, 0, -1}, // Trás
+	}
+
+	for _, dir := range directions {
+		// Verificar bloco vizinho (pode estar em outro chunk)
+		neighborBlock := cm.GetBlock(x+dir.dx, y+dir.dy, z+dir.dz)
+
+		// Se o vizinho é ar, o bloco está exposto
+		if neighborBlock == BlockAir {
+			return false
+		}
+	}
+
+	// Todas as 6 faces estão bloqueadas
+	return true
+}
+
 // SetBlock define o tipo de bloco nas coordenadas mundiais
 func (cm *ChunkManager) SetBlock(x, y, z int32, block BlockType) {
 	// Obter coordenadas do chunk
@@ -176,7 +206,8 @@ func (cm *ChunkManager) Render(grassMesh, dirtMesh, stoneMesh rl.Mesh, material 
 
 		// Renderizar apenas chunks dentro da distância de renderização
 		if distSq <= float32(cm.RenderDistance*cm.RenderDistance) {
-			chunk.Render(grassMesh, dirtMesh, stoneMesh, material)
+			// Passar a função GetBlock para considerar chunks vizinhos
+			chunk.Render(grassMesh, dirtMesh, stoneMesh, material, cm.GetBlock)
 		}
 	}
 }
@@ -193,4 +224,26 @@ func (cm *ChunkManager) GetTotalBlocks() int {
 // GetLoadedChunksCount retorna o número de chunks carregados
 func (cm *ChunkManager) GetLoadedChunksCount() int {
 	return len(cm.Chunks)
+}
+
+// MarkNeighborsForUpdate marca os chunks vizinhos para atualização de meshes
+// Deve ser chamado quando um novo chunk é criado para que os vizinhos
+// recalculem suas faces considerando o novo chunk
+func (cm *ChunkManager) MarkNeighborsForUpdate(coord ChunkCoord) {
+	// Verificar os 6 vizinhos diretos (faces adjacentes)
+	neighbors := []ChunkCoord{
+		{X: coord.X + 1, Y: coord.Y, Z: coord.Z}, // X+
+		{X: coord.X - 1, Y: coord.Y, Z: coord.Z}, // X-
+		{X: coord.X, Y: coord.Y + 1, Z: coord.Z}, // Y+
+		{X: coord.X, Y: coord.Y - 1, Z: coord.Z}, // Y-
+		{X: coord.X, Y: coord.Y, Z: coord.Z + 1}, // Z+
+		{X: coord.X, Y: coord.Y, Z: coord.Z - 1}, // Z-
+	}
+
+	for _, neighborCoord := range neighbors {
+		key := neighborCoord.Key()
+		if chunk, exists := cm.Chunks[key]; exists {
+			chunk.NeedUpdateMeshes = true
+		}
+	}
 }

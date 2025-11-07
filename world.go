@@ -53,6 +53,10 @@ func (w *World) GetBlock(x, y, z int32) BlockType {
 	return w.ChunkManager.GetBlock(x, y, z)
 }
 
+func (w *World) IsBlockHidden(x, y, z int32) bool {
+	return w.ChunkManager.IsBlockHidden(x, y, z)
+}
+
 // Update atualiza o mundo (carrega/descarrega chunks baseado na posição do jogador)
 func (w *World) Update(playerPos rl.Vector3, dt float32) {
 	w.ChunkManager.Update(playerPos, dt)
