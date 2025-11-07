@@ -33,6 +33,13 @@ func TestGetChunkCoord(t *testing.T) {
 		{"Misto positivo e negativo", -10, 10, -10, -1, 0, -1},
 		{"Grande negativo", -100, -100, -100, -4, -4, -4},
 		{"Grande positivo", 100, 100, 100, 3, 3, 3},
+
+		// Testes específicos para Y negativo
+		{"Y negativo -1", 0, -1, 0, 0, -1, 0},
+		{"Y negativo -32", 0, -32, 0, 0, -1, 0},
+		{"Y negativo -33", 0, -33, 0, 0, -2, 0},
+		{"Y negativo -64", 0, -64, 0, 0, -2, 0},
+		{"Todos negativos pequenos", -5, -5, -5, -1, -1, -1},
 	}
 
 	for _, tt := range tests {

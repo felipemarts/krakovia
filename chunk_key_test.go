@@ -19,6 +19,16 @@ func TestChunkKey(t *testing.T) {
 		{X: 2, Y: 0, Z: 0},
 		{X: -1, Y: 0, Z: -1},
 		{X: 1, Y: 0, Z: 1},
+		// Testes com Y negativo
+		{X: 0, Y: -1, Z: 0},
+		{X: 0, Y: -2, Z: 0},
+		{X: -1, Y: -1, Z: -1},
+		{X: 1, Y: -1, Z: 1},
+		{X: -2, Y: -2, Z: -2},
+		// Testes com Y positivo
+		{X: 0, Y: 1, Z: 0},
+		{X: 0, Y: 2, Z: 0},
+		{X: 1, Y: 1, Z: 1},
 	}
 
 	for _, coord := range coords {
