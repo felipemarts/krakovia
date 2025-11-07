@@ -158,17 +158,32 @@ func (c *Chunk) Render(grassMesh, dirtMesh, stoneMesh rl.Mesh, material rl.Mater
 
 // GetChunkCoord retorna as coordenadas do chunk que contém a posição mundial
 func GetChunkCoord(worldX, worldY, worldZ int32) ChunkCoord {
-	cx := int32(math.Floor(float64(worldX) / ChunkSize))
-	cy := int32(math.Floor(float64(worldY) / ChunkHeight))
-	cz := int32(math.Floor(float64(worldZ) / ChunkSize))
+	// Para coordenadas negativas, precisamos ajustar o cálculo
+	// Exemplo: -1 / 32 = 0 (errado), mas (-1 - 31) / 32 = -1 (correto)
+	cx := worldX / ChunkSize
+	if worldX < 0 && worldX%ChunkSize != 0 {
+		cx--
+	}
+
+	cy := worldY / ChunkHeight
+	if worldY < 0 && worldY%ChunkHeight != 0 {
+		cy--
+	}
+
+	cz := worldZ / ChunkSize
+	if worldZ < 0 && worldZ%ChunkSize != 0 {
+		cz--
+	}
+
 	return ChunkCoord{X: cx, Y: cy, Z: cz}
 }
 
 // GetChunkCoordFromFloat retorna as coordenadas do chunk que contém a posição mundial (float)
 func GetChunkCoordFromFloat(worldX, worldY, worldZ float32) ChunkCoord {
-	cx := int32(math.Floor(float64(worldX) / ChunkSize))
-	cy := int32(math.Floor(float64(worldY) / ChunkHeight))
-	cz := int32(math.Floor(float64(worldZ) / ChunkSize))
+	// Usar math.Floor corretamente para floats
+	cx := int32(math.Floor(float64(worldX) / float64(ChunkSize)))
+	cy := int32(math.Floor(float64(worldY) / float64(ChunkHeight)))
+	cz := int32(math.Floor(float64(worldZ) / float64(ChunkSize)))
 	return ChunkCoord{X: cx, Y: cy, Z: cz}
 }
 

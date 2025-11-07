@@ -126,20 +126,10 @@ func (cm *ChunkManager) GetBlock(x, y, z int32) BlockType {
 	}
 
 	// Converter para coordenadas locais do chunk
-	localX := x - (chunkCoord.X * ChunkSize)
-	localY := y - (chunkCoord.Y * ChunkHeight)
-	localZ := z - (chunkCoord.Z * ChunkSize)
-
-	// Ajustar para coordenadas locais positivas
-	if localX < 0 {
-		localX += ChunkSize
-	}
-	if localY < 0 {
-		localY += ChunkHeight
-	}
-	if localZ < 0 {
-		localZ += ChunkSize
-	}
+	// Usar módulo para garantir coordenadas locais corretas
+	localX := ((x % ChunkSize) + ChunkSize) % ChunkSize
+	localY := ((y % ChunkHeight) + ChunkHeight) % ChunkHeight
+	localZ := ((z % ChunkSize) + ChunkSize) % ChunkSize
 
 	return chunk.GetBlock(localX, localY, localZ)
 }
@@ -160,20 +150,10 @@ func (cm *ChunkManager) SetBlock(x, y, z int32, block BlockType) {
 	}
 
 	// Converter para coordenadas locais do chunk
-	localX := x - (chunkCoord.X * ChunkSize)
-	localY := y - (chunkCoord.Y * ChunkHeight)
-	localZ := z - (chunkCoord.Z * ChunkSize)
-
-	// Ajustar para coordenadas locais positivas
-	if localX < 0 {
-		localX += ChunkSize
-	}
-	if localY < 0 {
-		localY += ChunkHeight
-	}
-	if localZ < 0 {
-		localZ += ChunkSize
-	}
+	// Usar módulo para garantir coordenadas locais corretas
+	localX := ((x % ChunkSize) + ChunkSize) % ChunkSize
+	localY := ((y % ChunkHeight) + ChunkHeight) % ChunkHeight
+	localZ := ((z % ChunkSize) + ChunkSize) % ChunkSize
 
 	chunk.SetBlock(localX, localY, localZ, block)
 }
