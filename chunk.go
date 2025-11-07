@@ -189,5 +189,17 @@ func GetChunkCoordFromFloat(worldX, worldY, worldZ float32) ChunkCoord {
 
 // ChunkKey gera uma chave única para um chunk baseada em suas coordenadas
 func (cc ChunkCoord) Key() int64 {
-	return int64(cc.X) | (int64(cc.Y) << 20) | (int64(cc.Z) << 40)
+	// Usar deslocamento com máscaras para evitar colisões com números negativos
+	// Cada coordenada tem 20 bits (suporta valores de -524288 a 524287)
+	const mask20 = 0xFFFFF // 20 bits
+
+	// Converter para não-negativo adicionando offset
+	// Isso mapeia -524288 para 0, 0 para 524288, etc.
+	const offset = 524288 // 2^19
+
+	x := int64(cc.X+offset) & mask20
+	y := int64(cc.Y+offset) & mask20
+	z := int64(cc.Z+offset) & mask20
+
+	return x | (y << 20) | (z << 40)
 }
