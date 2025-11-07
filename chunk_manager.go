@@ -57,29 +57,32 @@ func (cm *ChunkManager) LoadChunksAroundPlayer(playerPos rl.Vector3) {
 	chunksLoadedThisFrame := 0
 	maxChunksPerFrame := 4 // Carregar no máximo 4 chunks por frame para carregamento mais rápido
 
-	// Carregar chunks em um raio ao redor do jogador, priorizando os mais próximos
+	// Carregar chunks em um raio 3D ao redor do jogador, priorizando os mais próximos
 	for distance := int32(0); distance <= cm.RenderDistance; distance++ {
 		for x := playerChunk.X - distance; x <= playerChunk.X+distance; x++ {
-			for z := playerChunk.Z - distance; z <= playerChunk.Z+distance; z++ {
-				// Verificar se está dentro do raio circular
-				dx := float32(x - playerChunk.X)
-				dz := float32(z - playerChunk.Z)
-				dist := float32(math.Sqrt(float64(dx*dx + dz*dz)))
+			for y := playerChunk.Y - distance; y <= playerChunk.Y+distance; y++ {
+				for z := playerChunk.Z - distance; z <= playerChunk.Z+distance; z++ {
+					// Verificar se está dentro do raio esférico 3D
+					dx := float32(x - playerChunk.X)
+					dy := float32(y - playerChunk.Y)
+					dz := float32(z - playerChunk.Z)
+					dist := float32(math.Sqrt(float64(dx*dx + dy*dy + dz*dz)))
 
-				if dist <= float32(cm.RenderDistance) {
-					// Carregar apenas chunks no nível do solo (y=0) por enquanto
-					coord := ChunkCoord{X: x, Y: 0, Z: z}
-					key := coord.Key()
+					if dist <= float32(cm.RenderDistance) {
+						// Carregar chunks em todas as direções (X, Y, Z)
+						coord := ChunkCoord{X: x, Y: y, Z: z}
+						key := coord.Key()
 
-					// Se o chunk não existe, criar e gerar
-					if _, exists := cm.Chunks[key]; !exists {
-						chunk := NewChunk(x, 0, z)
-						chunk.GenerateTerrain()
-						cm.Chunks[key] = chunk
+						// Se o chunk não existe, criar e gerar
+						if _, exists := cm.Chunks[key]; !exists {
+							chunk := NewChunk(x, y, z)
+							chunk.GenerateTerrain()
+							cm.Chunks[key] = chunk
 
-						chunksLoadedThisFrame++
-						if chunksLoadedThisFrame >= maxChunksPerFrame {
-							return // Parar de carregar neste frame
+							chunksLoadedThisFrame++
+							if chunksLoadedThisFrame >= maxChunksPerFrame {
+								return // Parar de carregar neste frame
+							}
 						}
 					}
 				}
@@ -96,10 +99,11 @@ func (cm *ChunkManager) UnloadDistantChunks(playerPos rl.Vector3) {
 	toRemove := make([]int64, 0)
 
 	for key, chunk := range cm.Chunks {
-		// Calcular distância do chunk ao jogador
+		// Calcular distância 3D do chunk ao jogador
 		dx := float32(chunk.Coord.X - playerChunk.X)
+		dy := float32(chunk.Coord.Y - playerChunk.Y)
 		dz := float32(chunk.Coord.Z - playerChunk.Z)
-		distance := float32(math.Sqrt(float64(dx*dx + dz*dz)))
+		distance := float32(math.Sqrt(float64(dx*dx + dy*dy + dz*dz)))
 
 		// Se está além da distância de descarregamento, marcar para remoção
 		if distance > float32(cm.UnloadDistance) {
@@ -164,10 +168,11 @@ func (cm *ChunkManager) Render(grassMesh, dirtMesh, stoneMesh rl.Mesh, material 
 	playerChunk := GetChunkCoordFromFloat(playerPos.X, playerPos.Y, playerPos.Z)
 
 	for _, chunk := range cm.Chunks {
-		// Calcular distância do chunk ao jogador
+		// Calcular distância 3D do chunk ao jogador
 		dx := float32(chunk.Coord.X - playerChunk.X)
+		dy := float32(chunk.Coord.Y - playerChunk.Y)
 		dz := float32(chunk.Coord.Z - playerChunk.Z)
-		distSq := dx*dx + dz*dz
+		distSq := dx*dx + dy*dy + dz*dz
 
 		// Renderizar apenas chunks dentro da distância de renderização
 		if distSq <= float32(cm.RenderDistance*cm.RenderDistance) {
