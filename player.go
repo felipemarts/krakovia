@@ -74,7 +74,7 @@ func (p *Player) Update(dt float32, world *World, input Input) {
 	)
 
 	// Movimento WASD
-	speed := float32(4.3)
+	speed := float32(15.0)
 	moveInput := rl.NewVector3(0, 0, 0)
 
 	if input.IsForwardPressed() {

@@ -14,7 +14,7 @@ func main() {
 	rl.DisableCursor()
 
 	// Inicializar jogador
-	player := NewPlayer(rl.NewVector3(8, 100, 8))
+	player := NewPlayer(rl.NewVector3(-42, 11, 30))
 
 	// Inicializar mundo
 	world := NewWorld()
@@ -73,9 +73,13 @@ func renderUI(player *Player, world *World) {
 	rl.DrawText("Click Esquerdo - Remover | Click Direito - Colocar", 10, 35, 20, rl.Black)
 	rl.DrawText(fmt.Sprintf("Posição: (%.1f, %.1f, %.1f)", player.Position.X, player.Position.Y, player.Position.Z), 10, 60, 20, rl.Black)
 
+	// Mostrar chunk atual do jogador
+	playerChunk := GetChunkCoordFromFloat(player.Position.X, player.Position.Y, player.Position.Z)
+	rl.DrawText(fmt.Sprintf("Chunk: (%d, %d, %d)", playerChunk.X, playerChunk.Y, playerChunk.Z), 10, 85, 20, rl.Black)
+
 	totalBlocks := world.GetTotalBlocks()
 	chunksLoaded := world.GetLoadedChunksCount()
-	rl.DrawText(fmt.Sprintf("Blocos: %d | Chunks: %d", totalBlocks, chunksLoaded), 10, 85, 20, rl.Black)
+	rl.DrawText(fmt.Sprintf("Blocos: %d | Chunks: %d", totalBlocks, chunksLoaded), 10, 110, 20, rl.Black)
 	rl.DrawText(fmt.Sprintf("FPS: %d", rl.GetFPS()), 10, screenHeight-30, 20, rl.Green)
 
 	// Crosshair
