@@ -190,6 +190,41 @@ func (cm *ChunkManager) SetBlock(x, y, z int32, block BlockType) {
 	localZ := ((z % ChunkSize) + ChunkSize) % ChunkSize
 
 	chunk.SetBlock(localX, localY, localZ, block)
+
+	// Se o bloco modificado está na borda do chunk, marcar chunks vizinhos para atualização
+	// Isso garante que faces que antes estavam ocultas agora apareçam
+	if localX == 0 {
+		// Borda X- -> marcar chunk à esquerda
+		cm.MarkChunkForUpdate(ChunkCoord{X: chunkCoord.X - 1, Y: chunkCoord.Y, Z: chunkCoord.Z})
+	}
+	if localX == ChunkSize-1 {
+		// Borda X+ -> marcar chunk à direita
+		cm.MarkChunkForUpdate(ChunkCoord{X: chunkCoord.X + 1, Y: chunkCoord.Y, Z: chunkCoord.Z})
+	}
+	if localY == 0 {
+		// Borda Y- -> marcar chunk abaixo
+		cm.MarkChunkForUpdate(ChunkCoord{X: chunkCoord.X, Y: chunkCoord.Y - 1, Z: chunkCoord.Z})
+	}
+	if localY == ChunkHeight-1 {
+		// Borda Y+ -> marcar chunk acima
+		cm.MarkChunkForUpdate(ChunkCoord{X: chunkCoord.X, Y: chunkCoord.Y + 1, Z: chunkCoord.Z})
+	}
+	if localZ == 0 {
+		// Borda Z- -> marcar chunk atrás
+		cm.MarkChunkForUpdate(ChunkCoord{X: chunkCoord.X, Y: chunkCoord.Y, Z: chunkCoord.Z - 1})
+	}
+	if localZ == ChunkSize-1 {
+		// Borda Z+ -> marcar chunk à frente
+		cm.MarkChunkForUpdate(ChunkCoord{X: chunkCoord.X, Y: chunkCoord.Y, Z: chunkCoord.Z + 1})
+	}
+}
+
+// MarkChunkForUpdate marca um chunk específico para atualização de mesh
+func (cm *ChunkManager) MarkChunkForUpdate(coord ChunkCoord) {
+	key := coord.Key()
+	if chunk, exists := cm.Chunks[key]; exists {
+		chunk.NeedUpdateMeshes = true
+	}
 }
 
 // Render renderiza todos os chunks carregados
