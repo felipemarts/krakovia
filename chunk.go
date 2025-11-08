@@ -20,24 +20,16 @@ type ChunkCoord struct {
 type Chunk struct {
 	Coord            ChunkCoord
 	Blocks           [ChunkSize][ChunkHeight][ChunkSize]BlockType
-	GrassTransforms  []rl.Matrix
-	DirtTransforms   []rl.Matrix
-	StoneTransforms  []rl.Matrix
+	ChunkMesh        *ChunkMesh // Mesh combinada de todo o chunk
 	NeedUpdateMeshes bool
 	IsGenerated      bool
 }
 
 // NewChunk cria um novo chunk nas coordenadas especificadas
 func NewChunk(x, y, z int32) *Chunk {
-	// Pré-alocar arrays de transforms com capacidade estimada
-	// Para um mundo plano, cada chunk terá no máximo ChunkSize*ChunkSize blocos (1024)
-	estimatedCapacity := ChunkSize * ChunkSize
-
 	return &Chunk{
 		Coord:            ChunkCoord{X: x, Y: y, Z: z},
-		GrassTransforms:  make([]rl.Matrix, 0, estimatedCapacity),
-		DirtTransforms:   make([]rl.Matrix, 0, estimatedCapacity),
-		StoneTransforms:  make([]rl.Matrix, 0, estimatedCapacity),
+		ChunkMesh:        NewChunkMesh(),
 		NeedUpdateMeshes: true,
 		IsGenerated:      false,
 	}
@@ -142,70 +134,43 @@ func (c *Chunk) IsBlockHiddenLocal(x, y, z int32) bool {
 	return true
 }
 
-// UpdateMeshes atualiza os arrays de transformações agrupados por tipo de bloco
-// Nota: Esta versão não considera chunks vizinhos para oclusão (otimização parcial)
+// UpdateMeshes atualiza a mesh sem considerar chunks vizinhos (fallback)
 func (c *Chunk) UpdateMeshes() {
-	// Limpar arrays (reutilizar memória)
-	c.GrassTransforms = c.GrassTransforms[:0]
-	c.DirtTransforms = c.DirtTransforms[:0]
-	c.StoneTransforms = c.StoneTransforms[:0]
+	// Usar a versão com vizinhos, mas retornar BlockAir para blocos fora do chunk
+	c.UpdateMeshesWithNeighbors(func(x, y, z int32) BlockType {
+		// Converter para coordenadas locais
+		localX := x - c.Coord.X*ChunkSize
+		localY := y - c.Coord.Y*ChunkHeight
+		localZ := z - c.Coord.Z*ChunkSize
 
-	// Posição mundial do chunk
-	worldX := c.Coord.X * ChunkSize
-	worldY := c.Coord.Y * ChunkHeight
-	worldZ := c.Coord.Z * ChunkSize
-
-	// Iterar por todos os blocos do chunk
-	for x := int32(0); x < ChunkSize; x++ {
-		for y := int32(0); y < ChunkHeight; y++ {
-			for z := int32(0); z < ChunkSize; z++ {
-				blockType := c.Blocks[x][y][z]
-				if blockType == BlockAir {
-					continue
-				}
-
-				// Otimização: não renderizar blocos completamente ocultos
-				// NOTA: Só verifica dentro do chunk - blocos na borda podem ser ocultos por chunks vizinhos
-				if c.IsBlockHiddenLocal(x, y, z) {
-					continue
-				}
-
-				// Calcular posição mundial do bloco
-				wx := float32(worldX + x)
-				wy := float32(worldY + y)
-				wz := float32(worldZ + z)
-
-				// Criar matriz de transformação (translação para a posição do bloco)
-				// Centralizar o cubo (+0.5 em cada eixo)
-				transform := rl.MatrixTranslate(wx+0.5, wy+0.5, wz+0.5)
-
-				// Adicionar ao array correspondente ao tipo de bloco
-				switch blockType {
-				case BlockGrass:
-					c.GrassTransforms = append(c.GrassTransforms, transform)
-				case BlockDirt:
-					c.DirtTransforms = append(c.DirtTransforms, transform)
-				case BlockStone:
-					c.StoneTransforms = append(c.StoneTransforms, transform)
-				}
-			}
+		// Se está fora do chunk, retornar ar
+		if localX < 0 || localX >= ChunkSize || localY < 0 || localY >= ChunkHeight || localZ < 0 || localZ >= ChunkSize {
+			return BlockAir
 		}
-	}
 
-	c.NeedUpdateMeshes = false
+		return c.Blocks[localX][localY][localZ]
+	})
 }
 
 // UpdateMeshesWithNeighbors atualiza meshes considerando chunks vizinhos
 func (c *Chunk) UpdateMeshesWithNeighbors(getBlockFunc func(x, y, z int32) BlockType) {
-	// Limpar arrays (reutilizar memória)
-	c.GrassTransforms = c.GrassTransforms[:0]
-	c.DirtTransforms = c.DirtTransforms[:0]
-	c.StoneTransforms = c.StoneTransforms[:0]
+	// Limpar mesh anterior
+	c.ChunkMesh.Clear()
 
 	// Posição mundial do chunk
 	worldX := c.Coord.X * ChunkSize
 	worldY := c.Coord.Y * ChunkHeight
 	worldZ := c.Coord.Z * ChunkSize
+
+	// Direções das 6 faces: +X, -X, +Y, -Y, +Z, -Z
+	directions := []struct{ dx, dy, dz int32 }{
+		{1, 0, 0},  // 0: Face +X (direita)
+		{-1, 0, 0}, // 1: Face -X (esquerda)
+		{0, 1, 0},  // 2: Face +Y (topo)
+		{0, -1, 0}, // 3: Face -Y (fundo)
+		{0, 0, 1},  // 4: Face +Z (frente)
+		{0, 0, -1}, // 5: Face -Z (trás)
+	}
 
 	// Iterar por todos os blocos do chunk
 	for x := int32(0); x < ChunkSize; x++ {
@@ -221,45 +186,27 @@ func (c *Chunk) UpdateMeshesWithNeighbors(getBlockFunc func(x, y, z int32) Block
 				wy := worldY + y
 				wz := worldZ + z
 
-				// Verificar se o bloco está completamente oculto considerando chunks vizinhos
-				isHidden := true
-				directions := []struct{ dx, dy, dz int32 }{
-					{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1},
-				}
-
-				for _, dir := range directions {
+				// Para cada face, verificar se está exposta e adicionar à mesh
+				for faceIndex, dir := range directions {
 					neighborBlock := getBlockFunc(wx+dir.dx, wy+dir.dy, wz+dir.dz)
+
+					// Se o vizinho é ar, a face está exposta
 					if neighborBlock == BlockAir {
-						isHidden = false
-						break
+						// Adicionar quad para esta face
+						c.ChunkMesh.AddQuad(float32(wx), float32(wy), float32(wz), faceIndex, blockType)
 					}
-				}
-
-				// Se está oculto, pular este bloco
-				if isHidden {
-					continue
-				}
-
-				// Criar matriz de transformação
-				transform := rl.MatrixTranslate(float32(wx)+0.5, float32(wy)+0.5, float32(wz)+0.5)
-
-				// Adicionar ao array correspondente ao tipo de bloco
-				switch blockType {
-				case BlockGrass:
-					c.GrassTransforms = append(c.GrassTransforms, transform)
-				case BlockDirt:
-					c.DirtTransforms = append(c.DirtTransforms, transform)
-				case BlockStone:
-					c.StoneTransforms = append(c.StoneTransforms, transform)
 				}
 			}
 		}
 	}
 
+	// Upload mesh para GPU
+	c.ChunkMesh.UploadToGPU()
+
 	c.NeedUpdateMeshes = false
 }
 
-// Render renderiza o chunk usando instanced rendering
+// Render renderiza o chunk usando mesh combinada
 func (c *Chunk) Render(grassMesh, dirtMesh, stoneMesh rl.Mesh, material rl.Material, getBlockFunc func(x, y, z int32) BlockType) {
 	// Atualizar meshes se necessário
 	if c.NeedUpdateMeshes && getBlockFunc != nil {
@@ -268,19 +215,9 @@ func (c *Chunk) Render(grassMesh, dirtMesh, stoneMesh rl.Mesh, material rl.Mater
 		c.UpdateMeshes()
 	}
 
-	// Renderizar blocos de grama (1 draw call para todos)
-	if len(c.GrassTransforms) > 0 {
-		DrawMeshInstanced(grassMesh, material, c.GrassTransforms)
-	}
-
-	// Renderizar blocos de terra (1 draw call para todos)
-	if len(c.DirtTransforms) > 0 {
-		DrawMeshInstanced(dirtMesh, material, c.DirtTransforms)
-	}
-
-	// Renderizar blocos de pedra (1 draw call para todos)
-	if len(c.StoneTransforms) > 0 {
-		DrawMeshInstanced(stoneMesh, material, c.StoneTransforms)
+	// Renderizar mesh combinada (1 draw call para TODO o chunk!)
+	if c.ChunkMesh.Uploaded {
+		rl.DrawMesh(c.ChunkMesh.Mesh, material, rl.MatrixIdentity())
 	}
 }
 

@@ -212,11 +212,14 @@ func (cm *ChunkManager) Render(grassMesh, dirtMesh, stoneMesh rl.Mesh, material 
 	}
 }
 
-// GetTotalBlocks retorna o número total de blocos carregados (para debug)
+// GetTotalBlocks retorna o número total de faces RENDERIZADAS (para debug)
 func (cm *ChunkManager) GetTotalBlocks() int {
 	total := 0
 	for _, chunk := range cm.Chunks {
-		total += len(chunk.GrassTransforms) + len(chunk.DirtTransforms) + len(chunk.StoneTransforms)
+		if chunk.ChunkMesh != nil && chunk.ChunkMesh.Uploaded {
+			// Cada quad (face) tem 2 triângulos
+			total += int(chunk.ChunkMesh.Mesh.TriangleCount / 2)
+		}
 	}
 	return total
 }
