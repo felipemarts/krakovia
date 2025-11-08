@@ -10,11 +10,33 @@ import (
 func createChunkedFlatWorld() *World {
 	world := NewWorld()
 
-	// Carregar chunks manualmente para o teste
-	for x := int32(-1); x <= 1; x++ {
-		for z := int32(-1); z <= 1; z++ {
+	// Desabilitar carregamento automático de chunks durante testes
+	// Definir cooldown muito alto para evitar Update de chunks
+	world.ChunkManager.UpdateCooldownLimit = 9999999.0
+
+	// Carregar chunks manualmente para o teste com terreno PLANO
+	for x := int32(-2); x <= 2; x++ {
+		for z := int32(-2); z <= 2; z++ {
 			chunk := NewChunk(x, 0, z)
-			chunk.GenerateTerrain()
+
+			// Gerar terreno completamente plano em Y=10 (sem noise)
+			for cx := int32(0); cx < ChunkSize; cx++ {
+				for cz := int32(0); cz < ChunkSize; cz++ {
+					// Preencher blocos até Y=10
+					for cy := int32(0); cy <= 10; cy++ {
+						if cy < 8 {
+							chunk.Blocks[cx][cy][cz] = BlockStone
+						} else if cy < 10 {
+							chunk.Blocks[cx][cy][cz] = BlockDirt
+						} else {
+							chunk.Blocks[cx][cy][cz] = BlockGrass
+						}
+					}
+				}
+			}
+			chunk.IsGenerated = true
+			chunk.NeedUpdateMeshes = true
+
 			key := ChunkCoord{X: x, Y: 0, Z: z}.Key()
 			world.ChunkManager.Chunks[key] = chunk
 		}

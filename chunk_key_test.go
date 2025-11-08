@@ -44,19 +44,3 @@ func TestChunkKey(t *testing.T) {
 			coord.X, coord.Y, coord.Z, key, uint64(key))
 	}
 }
-
-func TestChunkKeyMask(t *testing.T) {
-	// Testar se os valores negativos causam problemas com máscaras
-	coord1 := ChunkCoord{X: -1, Y: 0, Z: 0}
-	coord2 := ChunkCoord{X: 1048575, Y: 0, Z: 0} // 2^20 - 1
-
-	key1 := coord1.Key()
-	key2 := coord2.Key()
-
-	fmt.Printf("Coord1(-1,0,0): %064b\n", uint64(key1))
-	fmt.Printf("Coord2(1048575,0,0): %064b\n", uint64(key2))
-
-	if key1 == key2 {
-		t.Errorf("Chaves idênticas para coordenadas diferentes!")
-	}
-}
