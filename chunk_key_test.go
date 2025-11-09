@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"testing"
 )
 
@@ -38,9 +37,5 @@ func TestChunkKey(t *testing.T) {
 				existing, coord, key)
 		}
 		keys[key] = coord
-
-		// Debug: mostrar a chave binária
-		fmt.Printf("Chunk(%d,%d,%d) -> Key: %d (0x%016X)\n",
-			coord.X, coord.Y, coord.Z, key, uint64(key))
 	}
 }
