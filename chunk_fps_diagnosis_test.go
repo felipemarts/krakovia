@@ -11,6 +11,10 @@ import (
 
 // TestChunkLoading_DiagnoseMeshGenerationTime mede o tempo de geração de meshes (CPU) vs Upload (GPU)
 func TestChunkLoading_DiagnoseMeshGenerationTime(t *testing.T) {
+	// Desabilitar upload para GPU durante o teste
+	DisableGPUUploadForTesting = true
+	defer func() { DisableGPUUploadForTesting = false }()
+
 	t.Log("=== Diagnóstico: Onde está o gargalo? ===")
 	t.Log("")
 	t.Log("Este teste não pode executar UploadToGPU() pois não temos contexto OpenGL.")
@@ -142,6 +146,10 @@ func TestChunkLoading_DiagnoseMeshGenerationTime(t *testing.T) {
 
 // TestChunkLoading_SimulateFPSDropScenario simula o cenário que causa FPS drop
 func TestChunkLoading_SimulateFPSDropScenario(t *testing.T) {
+	// Desabilitar upload para GPU durante o teste
+	DisableGPUUploadForTesting = true
+	defer func() { DisableGPUUploadForTesting = false }()
+
 	t.Log("=== Simulação do Cenário de FPS Drop ===")
 	t.Log("")
 

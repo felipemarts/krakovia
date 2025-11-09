@@ -11,6 +11,10 @@ import (
 
 // TestChunkLoading_RealScenario_WithMeshUpdates simula o cenário real incluindo UpdateMeshes
 func TestChunkLoading_RealScenario_WithMeshUpdates(t *testing.T) {
+	// Desabilitar upload para GPU durante o teste
+	DisableGPUUploadForTesting = true
+	defer func() { DisableGPUUploadForTesting = false }()
+
 	world := NewWorld()
 	world.ChunkManager.RenderDistance = 4
 
@@ -113,6 +117,10 @@ func TestChunkLoading_RealScenario_WithMeshUpdates(t *testing.T) {
 
 // TestChunkLoading_MeshUpdateBottleneck testa especificamente se UpdateMeshes causa gargalo
 func TestChunkLoading_MeshUpdateBottleneck(t *testing.T) {
+	// Desabilitar upload para GPU durante o teste
+	DisableGPUUploadForTesting = true
+	defer func() { DisableGPUUploadForTesting = false }()
+
 	world := NewWorld()
 	world.ChunkManager.RenderDistance = 5 // Maior = mais chunks para atualizar
 
@@ -219,6 +227,10 @@ func TestChunkLoading_MeshUpdateBottleneck(t *testing.T) {
 
 // TestChunkLoading_NeighborMarkingPerformance testa se marcar vizinhos causa problemas
 func TestChunkLoading_NeighborMarkingPerformance(t *testing.T) {
+	// Desabilitar upload para GPU durante o teste
+	DisableGPUUploadForTesting = true
+	defer func() { DisableGPUUploadForTesting = false }()
+
 	world := NewWorld()
 	world.ChunkManager.RenderDistance = 4
 
@@ -281,6 +293,10 @@ func TestChunkLoading_NeighborMarkingPerformance(t *testing.T) {
 
 // TestChunkLoading_RealWorld_30Seconds simula 30 segundos de jogo real
 func TestChunkLoading_RealWorld_30Seconds(t *testing.T) {
+	// Desabilitar upload para GPU durante o teste
+	DisableGPUUploadForTesting = true
+	defer func() { DisableGPUUploadForTesting = false }()
+
 	world := NewWorld()
 	world.ChunkManager.RenderDistance = 5 // Valor típico do jogo
 

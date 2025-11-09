@@ -4,6 +4,10 @@ import (
 	rl "github.com/gen2brain/raylib-go/raylib"
 )
 
+// DisableGPUUploadForTesting desabilita upload de GPU para testes
+// Esta variável deve ser definida para true em ambientes de teste
+var DisableGPUUploadForTesting = false
+
 // ChunkMesh representa uma mesh customizada para um chunk
 type ChunkMesh struct {
 	Vertices  []float32
@@ -136,6 +140,12 @@ func (cm *ChunkMesh) AddQuad(x, y, z float32, face int, blockType BlockType) {
 // UploadToGPU faz upload da mesh para a GPU
 func (cm *ChunkMesh) UploadToGPU() {
 	if len(cm.Vertices) == 0 {
+		return
+	}
+
+	// Se estamos em modo de teste, pular upload para GPU
+	if DisableGPUUploadForTesting {
+		cm.Uploaded = false // Mesh data gerada, mas não enviada para GPU
 		return
 	}
 

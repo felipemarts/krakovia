@@ -10,6 +10,10 @@ import (
 
 // TestChunkLoading_FixValidation verifica se o limite de mesh updates funciona
 func TestChunkLoading_FixValidation(t *testing.T) {
+	// Desabilitar upload para GPU durante o teste
+	DisableGPUUploadForTesting = true
+	defer func() { DisableGPUUploadForTesting = false }()
+
 	world := NewWorld()
 	world.ChunkManager.RenderDistance = 5
 
@@ -109,6 +113,10 @@ func TestChunkLoading_FixValidation(t *testing.T) {
 
 // TestChunkLoading_FixStressTest testa a solução sob stress
 func TestChunkLoading_FixStressTest(t *testing.T) {
+	// Desabilitar upload para GPU durante o teste
+	DisableGPUUploadForTesting = true
+	defer func() { DisableGPUUploadForTesting = false }()
+
 	world := NewWorld()
 	world.ChunkManager.RenderDistance = 5
 	world.ChunkManager.UnloadDistance = 7
@@ -158,8 +166,12 @@ func TestChunkLoading_FixStressTest(t *testing.T) {
 	}
 }
 
-// TestChunkLoading_CompareBefore AfterFix compara antes/depois da solução
+// TestChunkLoading_CompareBeforeAfterFix compara antes/depois da solução
 func TestChunkLoading_CompareBeforeAfterFix(t *testing.T) {
+	// Desabilitar upload para GPU durante o teste
+	DisableGPUUploadForTesting = true
+	defer func() { DisableGPUUploadForTesting = false }()
+
 	t.Log("=== Comparação: Antes vs Depois da Solução ===")
 	t.Log("")
 
@@ -221,6 +233,10 @@ func TestChunkLoading_CompareBeforeAfterFix(t *testing.T) {
 
 // TestChunkLoading_FixRealWorldScenario testa cenário real de jogo
 func TestChunkLoading_FixRealWorldScenario(t *testing.T) {
+	// Desabilitar upload para GPU durante o teste
+	DisableGPUUploadForTesting = true
+	defer func() { DisableGPUUploadForTesting = false }()
+
 	world := NewWorld()
 	world.ChunkManager.RenderDistance = 5
 
