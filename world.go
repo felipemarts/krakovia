@@ -16,7 +16,7 @@ type World struct {
 }
 
 func NewWorld() *World {
-	renderDistance := int32(2) // Carregar chunks em um raio de 2 chunks com carregamento gradual
+	renderDistance := int32(5)
 	w := &World{
 		ChunkManager:   NewChunkManager(renderDistance),
 		RenderDistance: renderDistance,

@@ -227,8 +227,33 @@ func (cm *ChunkManager) MarkChunkForUpdate(coord ChunkCoord) {
 	}
 }
 
+// UpdatePendingMeshes atualiza meshes pendentes com limite por frame
+func (cm *ChunkManager) UpdatePendingMeshes(maxMeshUpdatesPerFrame int) int {
+	meshesUpdated := 0
+
+	// Atualizar meshes com limite para evitar FPS drops
+	for _, chunk := range cm.Chunks {
+		if chunk.NeedUpdateMeshes {
+			chunk.UpdateMeshesWithNeighbors(cm.GetBlock)
+			meshesUpdated++
+
+			// Limitar atualizações por frame
+			if meshesUpdated >= maxMeshUpdatesPerFrame {
+				break
+			}
+		}
+	}
+
+	return meshesUpdated
+}
+
 // Render renderiza todos os chunks carregados
 func (cm *ChunkManager) Render(grassMesh, dirtMesh, stoneMesh rl.Mesh, material rl.Material, playerPos rl.Vector3) {
+	// IMPORTANTE: Atualizar meshes pendentes ANTES de renderizar
+	// Limitamos a 3 mesh updates por frame para evitar FPS drops
+	const maxMeshUpdatesPerFrame = 3
+	cm.UpdatePendingMeshes(maxMeshUpdatesPerFrame)
+
 	// Renderizar apenas chunks próximos ao jogador para melhor performance
 	playerChunk := GetChunkCoordFromFloat(playerPos.X, playerPos.Y, playerPos.Z)
 
@@ -241,8 +266,11 @@ func (cm *ChunkManager) Render(grassMesh, dirtMesh, stoneMesh rl.Mesh, material 
 
 		// Renderizar apenas chunks dentro da distância de renderização
 		if distSq <= float32(cm.RenderDistance*cm.RenderDistance) {
-			// Passar a função GetBlock para considerar chunks vizinhos
-			chunk.Render(grassMesh, dirtMesh, stoneMesh, material, cm.GetBlock)
+			// Renderizar chunk (NÃO atualiza mesh aqui, já fizemos acima)
+			// Renderizar mesh combinada (1 draw call para TODO o chunk!)
+			if chunk.ChunkMesh.Uploaded {
+				rl.DrawMesh(chunk.ChunkMesh.Mesh, material, rl.MatrixIdentity())
+			}
 		}
 	}
 }

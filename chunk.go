@@ -207,14 +207,8 @@ func (c *Chunk) UpdateMeshesWithNeighbors(getBlockFunc func(x, y, z int32) Block
 }
 
 // Render renderiza o chunk usando mesh combinada
+// NOTA: A atualização de meshes agora é feita no ChunkManager.Render() com limite por frame
 func (c *Chunk) Render(grassMesh, dirtMesh, stoneMesh rl.Mesh, material rl.Material, getBlockFunc func(x, y, z int32) BlockType) {
-	// Atualizar meshes se necessário
-	if c.NeedUpdateMeshes && getBlockFunc != nil {
-		c.UpdateMeshesWithNeighbors(getBlockFunc)
-	} else if c.NeedUpdateMeshes {
-		c.UpdateMeshes()
-	}
-
 	// Renderizar mesh combinada (1 draw call para TODO o chunk!)
 	if c.ChunkMesh.Uploaded {
 		rl.DrawMesh(c.ChunkMesh.Mesh, material, rl.MatrixIdentity())
