@@ -1,7 +1,6 @@
 package game
 
 import (
-	"fmt"
 	"unsafe"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
@@ -17,9 +16,6 @@ func CreateTexturedCubeMesh(blockType BlockType) rl.Mesh {
 
 	// Obter UVs para o tipo de bloco
 	uMin, vMin, uMax, vMax := GetBlockUVs(blockType)
-
-	// Debug: imprimir os UVs calculados
-	fmt.Printf("Bloco %v: UV=[%.3f,%.3f] -> [%.3f,%.3f]\n", blockType, uMin, vMin, uMax, vMax)
 
 	// Gerar mesh base e pegar UVs padrão
 	tempMesh := rl.GenMeshCube(1.0, 1.0, 1.0)

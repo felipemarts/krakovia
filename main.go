@@ -9,6 +9,8 @@ import (
 )
 
 func main() {
+	rl.SetTraceLogLevel(rl.LogWarning)
+
 	rl.InitWindow(game.ScreenWidth, game.ScreenHeight, "Krakovia - Minecraft em Go")
 	defer rl.CloseWindow()
 
