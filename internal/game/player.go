@@ -18,6 +18,83 @@ const (
 	cameraFirstPersonBlendThreshold = 0.15
 )
 
+// PlayerModel gerencia o modelo 3D e animações do jogador
+type PlayerModel struct {
+	Model            rl.Model
+	Animations       []rl.ModelAnimation
+	AnimationCount   int
+	CurrentAnimIndex int
+	CurrentFrame     int
+	IsLoaded         bool
+}
+
+// LoadPlayerModel carrega um modelo GLB com animações
+// Baseado no exemplo raylib de importação GLTF
+func LoadPlayerModel(modelPath string) *PlayerModel {
+	pm := &PlayerModel{
+		IsLoaded: false,
+	}
+
+	// Carregar modelo GLB
+	pm.Model = rl.LoadModel(modelPath)
+	if pm.Model.MeshCount == 0 {
+		return pm
+	}
+
+	// Carregar animações do modelo
+	pm.Animations = rl.LoadModelAnimations(modelPath)
+	pm.AnimationCount = len(pm.Animations)
+
+	// Inicializar com primeira animação se disponível
+	pm.CurrentAnimIndex = 0
+	pm.CurrentFrame = 0
+	pm.IsLoaded = true
+
+	return pm
+}
+
+// UnloadPlayerModel descarrega o modelo e suas animações
+func (pm *PlayerModel) Unload() {
+	if !pm.IsLoaded {
+		return
+	}
+
+	// Descarregar animações
+	if pm.AnimationCount > 0 && len(pm.Animations) > 0 {
+		rl.UnloadModelAnimations(pm.Animations)
+	}
+
+	// Descarregar modelo
+	rl.UnloadModel(pm.Model)
+	pm.IsLoaded = false
+}
+
+// UpdateAnimation atualiza a animação do modelo
+func (pm *PlayerModel) UpdateAnimation() {
+	if !pm.IsLoaded || pm.AnimationCount == 0 {
+		return
+	}
+
+	// Obter animação atual
+	anim := pm.Animations[pm.CurrentAnimIndex]
+
+	// Avançar frame
+	pm.CurrentFrame = (pm.CurrentFrame + 1) % int(anim.FrameCount)
+
+	// Atualizar modelo com frame atual
+	rl.UpdateModelAnimation(pm.Model, anim, int32(pm.CurrentFrame))
+}
+
+// SetAnimation define qual animação deve ser reproduzida
+func (pm *PlayerModel) SetAnimation(index int) {
+	if !pm.IsLoaded || index < 0 || index >= pm.AnimationCount {
+		return
+	}
+
+	pm.CurrentAnimIndex = index
+	pm.CurrentFrame = 0
+}
+
 // Player representa o jogador
 type Player struct {
 	Position            rl.Vector3
@@ -37,6 +114,7 @@ type Player struct {
 	FirstPersonDistance float32
 	FlyMode             bool
 	ShowCollisionBody   bool
+	Model               *PlayerModel
 }
 
 func NewPlayer(position rl.Vector3) *Player {
@@ -52,6 +130,9 @@ func NewPlayer(position rl.Vector3) *Player {
 		FirstPersonDistance: 0.35,
 	}
 
+	// Carregar modelo 3D do player
+	player.Model = LoadPlayerModel("assets/model2.glb")
+
 	// CÃ¢mera em terceira pessoa
 	player.Camera = rl.Camera3D{
 		Position:   rl.NewVector3(position.X, position.Y+2, position.Z+5),
@@ -65,6 +146,11 @@ func NewPlayer(position rl.Vector3) *Player {
 }
 
 func (p *Player) Update(dt float32, world *World, input Input) {
+	// Atualizar animação do modelo 3D
+	if p.Model != nil && p.Model.IsLoaded {
+		p.Model.UpdateAnimation()
+	}
+
 	// Toggle fly mode com tecla P
 	if input.IsFlyTogglePressed() {
 		p.FlyMode = !p.FlyMode
@@ -330,18 +416,29 @@ func clamp01(value float32) float32 {
 }
 
 func (p *Player) RenderPlayer() {
-	if !p.ShowCollisionBody {
-		return
+	// Renderizar modelo 3D se disponível
+	if p.Model != nil && p.Model.IsLoaded {
+		// Posição do modelo (centralizado na posição do player)
+		modelPos := rl.NewVector3(p.Position.X, p.Position.Y, p.Position.Z)
+
+		// Escala do modelo (ajustar conforme necessário)
+		scale := float32(1.0)
+
+		// Renderizar o modelo com animação
+		rl.DrawModel(p.Model.Model, modelPos, scale, rl.White)
 	}
 
-	base := rl.NewVector3(p.Position.X, p.Position.Y, p.Position.Z)
-	top := rl.NewVector3(p.Position.X, p.Position.Y+p.Height, p.Position.Z)
+	// Renderizar corpo de colisão se ativado
+	if p.ShowCollisionBody {
+		base := rl.NewVector3(p.Position.X, p.Position.Y, p.Position.Z)
+		top := rl.NewVector3(p.Position.X, p.Position.Y+p.Height, p.Position.Z)
 
-	fillColor := rl.Color{R: 255, G: 229, B: 153, A: 80}
-	wireColor := rl.Color{R: 255, G: 140, B: 0, A: 255}
+		fillColor := rl.Color{R: 255, G: 229, B: 153, A: 80}
+		wireColor := rl.Color{R: 255, G: 140, B: 0, A: 255}
 
-	rl.DrawCylinderEx(base, top, p.Radius, p.Radius, 20, fillColor)
-	rl.DrawCylinderWiresEx(base, top, p.Radius, p.Radius, 12, wireColor)
+		rl.DrawCylinderEx(base, top, p.Radius, p.Radius, 20, fillColor)
+		rl.DrawCylinderWiresEx(base, top, p.Radius, p.Radius, 12, wireColor)
+	}
 }
 
 func (p *Player) ApplyMovement(dt float32, world *World) {
