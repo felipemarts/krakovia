@@ -236,7 +236,7 @@ func TestPlayerAiming_LookAtBlock(t *testing.T) {
 	simulateFrames(player, world, input, 60)
 
 	// Olhar para baixo para mirar no chão (sempre vai ter o terreno)
-	player.Pitch = 1.5 // Máximo pitch (olhando para baixo)
+	player.Pitch = -1.5 // Máximo pitch (olhando para baixo)
 
 	// Atualizar para recalcular câmera e raycast
 	player.Update(1.0/60.0, world, input)
@@ -260,7 +260,7 @@ func TestPlayerAiming_NoBlockInRange(t *testing.T) {
 
 	// Olhar para cima (sem blocos)
 	player.Yaw = 0
-	player.Pitch = -1.5
+	player.Pitch = 1.5
 
 	input := &SimulatedInput{}
 	player.Update(1.0/60.0, world, input)
@@ -302,7 +302,7 @@ func TestPlayerPlaceBlock(t *testing.T) {
 	simulateFrames(player, world, input, 60)
 
 	// Olhar para baixo (mirar no chão)
-	player.Pitch = 1.5
+	player.Pitch = -1.5
 
 	player.Update(1.0/60.0, world, input)
 
@@ -339,7 +339,7 @@ func TestPlayerPlaceBlock_CannotPlaceWithoutTarget(t *testing.T) {
 
 	// Olhar para cima (sem target)
 	player.Yaw = 0
-	player.Pitch = -1.5
+	player.Pitch = 1.5
 
 	input := &SimulatedInput{RightClick: true}
 	player.Update(1.0/60.0, world, input)
@@ -364,7 +364,7 @@ func TestPlayerPlaceBlock_MultipleBlocks(t *testing.T) {
 
 	// Primeiro bloco
 	player.Yaw = 0
-	player.Pitch = 0.3
+	player.Pitch = -0.3
 	player.Update(1.0/60.0, world, input)
 
 	if player.LookingAtBlock {
@@ -415,7 +415,7 @@ func TestPlayerRemoveBlock(t *testing.T) {
 	simulateFrames(player, world, input, 60)
 
 	// Olhar para baixo (mirar no chão para remover)
-	player.Pitch = 1.5
+	player.Pitch = -1.5
 
 	player.Update(1.0/60.0, world, input)
 
@@ -454,7 +454,7 @@ func TestPlayerRemoveBlock_CannotRemoveWithoutTarget(t *testing.T) {
 
 	// Olhar para cima (sem target)
 	player.Yaw = 0
-	player.Pitch = -1.5
+	player.Pitch = 1.5
 
 	input := &SimulatedInput{LeftClick: true}
 	player.Update(1.0/60.0, world, input)
@@ -476,7 +476,7 @@ func TestPlayerRemoveBlock_TerrainModification(t *testing.T) {
 	simulateFrames(player, world, input, 60)
 
 	// Mirar para baixo e remover bloco do chão
-	player.Pitch = 1.5
+	player.Pitch = -1.5
 	player.Update(1.0/60.0, world, input)
 
 	if !player.LookingAtBlock {

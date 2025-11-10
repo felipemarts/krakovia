@@ -6,35 +6,52 @@ import (
 	rl "github.com/gen2brain/raylib-go/raylib"
 )
 
+const (
+	cameraTargetHeight              = 1.0
+	cameraTargetOffsetUp            = 1.0
+	cameraTargetOffsetRight         = -0.6
+	cameraTransitionSpeed           = 8.0
+	cameraAutoFirstPersonSwitch     = 0.8
+	cameraCollisionProbeStep        = 0.2
+	cameraCollisionPadding          = 0.3
+	cameraFirstPersonForwardOffset  = 0.05
+	cameraFirstPersonBlendThreshold = 0.15
+)
+
 // Player representa o jogador
 type Player struct {
-	Position       rl.Vector3
-	Velocity       rl.Vector3
-	Camera         rl.Camera3D
-	Yaw            float32
-	Pitch          float32
-	IsOnGround     bool
-	LookingAtBlock bool
-	TargetBlock    rl.Vector3
-	PlaceBlock     rl.Vector3
-	Height         float32
-	Radius         float32
-	CameraDistance float32
-	FlyMode        bool
+	Position            rl.Vector3
+	Velocity            rl.Vector3
+	Camera              rl.Camera3D
+	Yaw                 float32
+	Pitch               float32
+	IsOnGround          bool
+	LookingAtBlock      bool
+	TargetBlock         rl.Vector3
+	PlaceBlock          rl.Vector3
+	Height              float32
+	Radius              float32
+	CameraDistance      float32
+	FirstPerson         bool
+	ThirdPersonDistance float32
+	FirstPersonDistance float32
+	FlyMode             bool
 }
 
 func NewPlayer(position rl.Vector3) *Player {
 	player := &Player{
-		Position:       position,
-		Velocity:       rl.NewVector3(0, 0, 0),
-		Yaw:            0,
-		Pitch:          0.3, // Olhando um pouco para baixo
-		Height:         1.8,
-		Radius:         0.3,
-		CameraDistance: 5.0,
+		Position:            position,
+		Velocity:            rl.NewVector3(0, 0, 0),
+		Yaw:                 0,
+		Pitch:               0.3, // Olhando um pouco para baixo
+		Height:              1.8,
+		Radius:              0.3,
+		CameraDistance:      5.0,
+		ThirdPersonDistance: 5.0,
+		FirstPersonDistance: 0.35,
 	}
 
-	// Câmera em terceira pessoa
+	// CÃ¢mera em terceira pessoa
 	player.Camera = rl.Camera3D{
 		Position:   rl.NewVector3(position.X, position.Y+2, position.Z+5),
 		Target:     rl.NewVector3(position.X, position.Y+1, position.Z),
@@ -56,12 +73,17 @@ func (p *Player) Update(dt float32, world *World, input Input) {
 		}
 	}
 
+	// Alternar modos de cÃ¢mera com a tecla V
+	if input.IsCameraTogglePressed() {
+		p.FirstPerson = !p.FirstPerson
+	}
+
 	// Controle do mouse
 	mouseDelta := input.GetMouseDelta()
 	sensitivity := float32(0.003)
 
 	p.Yaw -= mouseDelta.X * sensitivity
-	p.Pitch += mouseDelta.Y * sensitivity // Invertido para movimento natural
+	p.Pitch -= mouseDelta.Y * sensitivity // Mantém sensação natural em primeira e terceira pessoa
 
 	// Limitar pitch
 	if p.Pitch > 1.5 {
@@ -71,7 +93,7 @@ func (p *Player) Update(dt float32, world *World, input Input) {
 		p.Pitch = -1.5
 	}
 
-	// Calcular direção frontal e lateral
+	// Calcular direÃ§Ã£o frontal e lateral
 	forward := rl.NewVector3(
 		float32(math.Sin(float64(p.Yaw))),
 		0,
@@ -109,7 +131,7 @@ func (p *Player) Update(dt float32, world *World, input Input) {
 	p.Velocity.X = moveInput.X
 	p.Velocity.Z = moveInput.Z
 
-	// Lógica de física diferente baseado no modo fly
+	// LÃ³gica de fÃ­sica diferente baseado no modo fly
 	if p.FlyMode {
 		// No modo fly: sem gravidade, controle vertical com Shift/Ctrl
 		flySpeed := float32(15.0)
@@ -122,12 +144,12 @@ func (p *Player) Update(dt float32, world *World, input Input) {
 			p.Velocity.Y = -flySpeed
 		}
 
-		// No modo fly, aplicar movimento sem colisões
+		// No modo fly, aplicar movimento sem colisÃµes
 		p.Position.X += p.Velocity.X * dt
 		p.Position.Y += p.Velocity.Y * dt
 		p.Position.Z += p.Velocity.Z * dt
 	} else {
-		// Modo normal: gravidade e colisões ativas
+		// Modo normal: gravidade e colisÃµes ativas
 		gravity := float32(-20.0)
 		p.Velocity.Y += gravity * dt
 
@@ -137,38 +159,17 @@ func (p *Player) Update(dt float32, world *World, input Input) {
 			p.IsOnGround = false
 		}
 
-		// Aplicar velocidade com detecção de colisão
+		// Aplicar velocidade com detecÃ§Ã£o de colisÃ£o
 		p.ApplyMovement(dt, world)
 	}
 
-	// Atualizar câmera em terceira pessoa
-	targetHeight := float32(1.0)
-
-	// Calcular direção "direita" baseada no yaw para offset horizontal
-	rightX := float32(math.Cos(float64(p.Yaw)))
-	rightZ := float32(-math.Sin(float64(p.Yaw)))
-
-	// Offset do target: um pouco à direita e para cima do centro do jogador
-	targetOffsetRight := float32(-1.0) // Desloca para direita
-	targetOffsetUp := float32(1.0)     // Desloca para cima
-
-	p.Camera.Target = rl.NewVector3(
-		p.Position.X+rightX*targetOffsetRight,
-		p.Position.Y+targetHeight+targetOffsetUp,
-		p.Position.Z+rightZ*targetOffsetRight,
-	)
-
-	// Calcular posição da câmera atrás do jogador
-	camX := p.Position.X - float32(math.Sin(float64(p.Yaw))*math.Cos(float64(p.Pitch)))*p.CameraDistance
-	camY := p.Position.Y + targetHeight + float32(math.Sin(float64(p.Pitch)))*p.CameraDistance
-	camZ := p.Position.Z - float32(math.Cos(float64(p.Yaw))*math.Cos(float64(p.Pitch)))*p.CameraDistance
-
-	p.Camera.Position = rl.NewVector3(camX, camY, camZ)
+	// Atualizar câmera considerando colisões e transições suaves
+	p.updateCamera(dt, world)
 
 	// Raycasting para colocar/remover blocos
 	p.RaycastBlocks(world)
 
-	// Interação com blocos
+	// InteraÃ§Ã£o com blocos
 	if input.IsLeftClickPressed() && p.LookingAtBlock {
 		// Remover bloco
 		world.SetBlock(int32(p.TargetBlock.X), int32(p.TargetBlock.Y), int32(p.TargetBlock.Z), BlockAir)
@@ -180,35 +181,168 @@ func (p *Player) Update(dt float32, world *World, input Input) {
 	}
 }
 
+func (p *Player) updateCamera(dt float32, world *World) {
+	desiredDistance := p.ThirdPersonDistance
+	if p.FirstPerson {
+		desiredDistance = p.FirstPersonDistance
+	}
+
+	p.CameraDistance = smoothApproach(p.CameraDistance, desiredDistance, dt, cameraTransitionSpeed)
+	if p.CameraDistance < p.FirstPersonDistance {
+		p.CameraDistance = p.FirstPersonDistance
+	}
+
+	right := rl.NewVector3(
+		float32(math.Cos(float64(p.Yaw))),
+		0,
+		float32(-math.Sin(float64(p.Yaw))),
+	)
+
+	head := rl.NewVector3(p.Position.X, p.Position.Y+cameraTargetHeight, p.Position.Z)
+	totalRange := p.ThirdPersonDistance - p.FirstPersonDistance
+	shoulderBlend := float32(1.0)
+	if totalRange > 0 {
+		shoulderBlend = clamp01((p.CameraDistance - p.FirstPersonDistance) / totalRange)
+	}
+
+	dynamicOffsetRight := cameraTargetOffsetRight * shoulderBlend
+	pivot := rl.Vector3Add(head, rl.Vector3Scale(right, dynamicOffsetRight))
+	pivot = rl.Vector3Add(pivot, rl.NewVector3(0, cameraTargetOffsetUp, 0))
+
+	forward := rl.NewVector3(
+		float32(math.Sin(float64(p.Yaw)))*float32(math.Cos(float64(p.Pitch))),
+		float32(math.Sin(float64(p.Pitch))),
+		float32(math.Cos(float64(p.Yaw)))*float32(math.Cos(float64(p.Pitch))),
+	)
+	if rl.Vector3Length(forward) == 0 {
+		forward = rl.NewVector3(0, 0, 1)
+	} else {
+		forward = rl.Vector3Normalize(forward)
+	}
+	backward := rl.Vector3Scale(forward, -1)
+
+	collisionDistance := p.resolveCameraCollision(world, pivot, backward, p.CameraDistance)
+
+	useFirstPerson := false
+	if collisionDistance < cameraAutoFirstPersonSwitch {
+		useFirstPerson = true
+	} else if p.CameraDistance <= p.FirstPersonDistance+cameraFirstPersonBlendThreshold {
+		// Ainda estamos no "túnel" de transição próximo ao jogador, manter primeira pessoa
+		useFirstPerson = true
+	} else if p.FirstPerson {
+		// Deseja primeira pessoa, mas aguardar aproximação suave
+		useFirstPerson = false
+	}
+
+	var cameraPos rl.Vector3
+	var cameraTarget rl.Vector3
+
+	if useFirstPerson {
+		viewPivot := rl.Vector3Add(head, rl.NewVector3(0, cameraTargetOffsetUp*0.5, 0))
+		cameraPos = rl.Vector3Add(viewPivot, rl.Vector3Scale(forward, cameraFirstPersonForwardOffset))
+		cameraTarget = rl.Vector3Add(cameraPos, forward)
+	} else {
+		cameraPos = rl.Vector3Add(pivot, rl.Vector3Scale(backward, collisionDistance))
+		cameraTarget = rl.Vector3Add(pivot, forward)
+	}
+
+	p.Camera.Position = cameraPos
+	p.Camera.Target = cameraTarget
+}
+
+func (p *Player) resolveCameraCollision(world *World, pivot, backward rl.Vector3, desired float32) float32 {
+	if world == nil {
+		return desired
+	}
+
+	maxDistance := desired
+	if maxDistance < p.FirstPersonDistance {
+		maxDistance = p.FirstPersonDistance
+	}
+
+	steps := int(maxDistance/cameraCollisionProbeStep) + 1
+	for i := 0; i <= steps; i++ {
+		distance := float32(i) * cameraCollisionProbeStep
+		if distance > maxDistance {
+			distance = maxDistance
+		}
+
+		point := rl.Vector3Add(pivot, rl.Vector3Scale(backward, distance))
+		if p.isCameraObstructed(world, point) {
+			clipped := distance - cameraCollisionPadding
+			if clipped < p.FirstPersonDistance {
+				clipped = p.FirstPersonDistance
+			}
+			if clipped < 0 {
+				clipped = 0
+			}
+			return clipped
+		}
+	}
+
+	return maxDistance
+}
+
+func (p *Player) isCameraObstructed(world *World, point rl.Vector3) bool {
+	if world == nil {
+		return false
+	}
+
+	x := int32(math.Floor(float64(point.X)))
+	y := int32(math.Floor(float64(point.Y)))
+	z := int32(math.Floor(float64(point.Z)))
+
+	return world.GetBlock(x, y, z) != BlockAir
+}
+
+func smoothApproach(current, target, dt, speed float32) float32 {
+	if speed <= 0 || dt <= 0 {
+		return target
+	}
+
+	factor := 1 - float32(math.Exp(float64(-speed*dt)))
+	return current + (target-current)*factor
+}
+
+func clamp01(value float32) float32 {
+	if value < 0 {
+		return 0
+	}
+	if value > 1 {
+		return 1
+	}
+	return value
+}
+
 func (p *Player) RenderPlayer() {
-	// Desenhar cápsula representando o jogador
+	// Desenhar cÃ¡psula representando o jogador
 	// Corpo (cilindro)
 	bodyHeight := p.Height - p.Radius*2
 	bodyPos := rl.NewVector3(p.Position.X, p.Position.Y+p.Radius+bodyHeight/2, p.Position.Z)
 	rl.DrawCylinder(bodyPos, p.Radius, p.Radius, bodyHeight, 8, rl.Blue)
 	rl.DrawCylinderWires(bodyPos, p.Radius, p.Radius, bodyHeight, 8, rl.DarkBlue)
 
-	// Esfera superior (cabeça)
+	// Esfera superior (cabeÃ§a)
 	topSpherePos := rl.NewVector3(p.Position.X, p.Position.Y+p.Height-p.Radius, p.Position.Z)
 	rl.DrawSphere(topSpherePos, p.Radius, rl.Blue)
 	rl.DrawSphereWires(topSpherePos, p.Radius, 8, 8, rl.DarkBlue)
 
-	// Esfera inferior (pés)
+	// Esfera inferior (pÃ©s)
 	bottomSpherePos := rl.NewVector3(p.Position.X, p.Position.Y+p.Radius, p.Position.Z)
 	rl.DrawSphere(bottomSpherePos, p.Radius, rl.Blue)
 	rl.DrawSphereWires(bottomSpherePos, p.Radius, 8, 8, rl.DarkBlue)
 
-	// Indicador de direção (pequeno cubo na frente)
+	// Indicador de direÃ§Ã£o (pequeno cubo na frente)
 	dirX := float32(math.Sin(float64(p.Yaw))) * (p.Radius + 0.1)
 	dirZ := float32(math.Cos(float64(p.Yaw))) * (p.Radius + 0.1)
 	dirPos := rl.NewVector3(p.Position.X+dirX, p.Position.Y+p.Height/2, p.Position.Z+dirZ)
 	rl.DrawCube(dirPos, 0.1, 0.1, 0.1, rl.Red)
 
-	// Visualizar cilindro de colisão (semi-transparente)
+	// Visualizar cilindro de colisÃ£o (semi-transparente)
 	collisionPos := rl.NewVector3(p.Position.X, p.Position.Y+p.Height/2, p.Position.Z)
 	rl.DrawCylinderWires(collisionPos, p.Radius, p.Radius, p.Height, 12, rl.Yellow)
 
-	// Desenhar círculo no chão mostrando o raio de colisão
+	// Desenhar cÃ­rculo no chÃ£o mostrando o raio de colisÃ£o
 	floorPos := rl.NewVector3(p.Position.X, p.Position.Y+0.01, p.Position.Z)
 	rl.DrawCircle3D(floorPos, p.Radius, rl.NewVector3(1, 0, 0), 90, rl.Fade(rl.Yellow, 0.3))
 }
@@ -246,13 +380,13 @@ func (p *Player) ApplyMovement(dt float32, world *World) {
 
 		if !p.CheckCollision(newPosY, world) {
 			p.Position.Y = newPosY.Y
-			// Só marcar como não no chão se estamos realmente nos movendo para cima ou caindo
+			// SÃ³ marcar como nÃ£o no chÃ£o se estamos realmente nos movendo para cima ou caindo
 			if p.Velocity.Y != 0 {
 				p.IsOnGround = false
 			}
 		} else {
 			if p.Velocity.Y < 0 {
-				// Colidiu com o chão
+				// Colidiu com o chÃ£o
 				p.IsOnGround = true
 				p.Velocity.Y = 0
 			} else if p.Velocity.Y > 0 {
@@ -262,7 +396,7 @@ func (p *Player) ApplyMovement(dt float32, world *World) {
 		}
 	}
 
-	// Verificação extra: check colisão abaixo para garantir IsOnGround correto
+	// VerificaÃ§Ã£o extra: check colisÃ£o abaixo para garantir IsOnGround correto
 	checkBelowPos := p.Position
 	checkBelowPos.Y -= 0.01 // Verificar ligeiramente abaixo
 	if p.CheckCollision(checkBelowPos, world) {
@@ -271,7 +405,7 @@ func (p *Player) ApplyMovement(dt float32, world *World) {
 }
 
 func (p *Player) CheckCollision(newPos rl.Vector3, world *World) bool {
-	// Verificar colisão cilíndrica apropriada
+	// Verificar colisÃ£o cilÃ­ndrica apropriada
 	minX := int32(math.Floor(float64(newPos.X - p.Radius)))
 	maxX := int32(math.Floor(float64(newPos.X + p.Radius)))
 	minY := int32(math.Floor(float64(newPos.Y)))
@@ -284,8 +418,8 @@ func (p *Player) CheckCollision(newPos rl.Vector3, world *World) bool {
 			for z := minZ; z <= maxZ; z++ {
 				blockType := world.GetBlock(x, y, z)
 				if blockType != BlockAir {
-					// Otimização: ignorar colisão com blocos completamente ocultos
-					// (eles não podem ser alcançados pelo jogador)
+					// OtimizaÃ§Ã£o: ignorar colisÃ£o com blocos completamente ocultos
+					// (eles nÃ£o podem ser alcanÃ§ados pelo jogador)
 					if world.IsBlockHidden(x, y, z) {
 						continue
 					}
@@ -295,13 +429,13 @@ func (p *Player) CheckCollision(newPos rl.Vector3, world *World) bool {
 					blockCenterX := float32(x) + 0.5
 					blockCenterZ := float32(z) + 0.5
 
-					// Distância horizontal do centro do jogador ao centro do bloco
+					// DistÃ¢ncia horizontal do centro do jogador ao centro do bloco
 					dx := newPos.X - blockCenterX
 					dz := newPos.Z - blockCenterZ
 					distSq := dx*dx + dz*dz
 
-					// Colisão cilíndrica: verificar se a distância é menor que a soma dos raios
-					// (raio do jogador + raio do bloco que é 0.5)
+					// ColisÃ£o cilÃ­ndrica: verificar se a distÃ¢ncia Ã© menor que a soma dos raios
+					// (raio do jogador + raio do bloco que Ã© 0.5)
 					maxDist := p.Radius + 0.5
 					if distSq < maxDist*maxDist {
 						return true
@@ -315,7 +449,7 @@ func (p *Player) CheckCollision(newPos rl.Vector3, world *World) bool {
 }
 
 func (p *Player) RaycastBlocks(world *World) {
-	// Raycast diretamente da câmera na direção que ela está apontando
+	// Raycast diretamente da cÃ¢mera na direÃ§Ã£o que ela estÃ¡ apontando
 	// Isso garante que o raycast sempre acerte onde o crosshair aponta
 	rayOrigin := p.Camera.Position
 	rayDir := rl.Vector3Normalize(rl.Vector3Subtract(p.Camera.Target, p.Camera.Position))
@@ -323,12 +457,12 @@ func (p *Player) RaycastBlocks(world *World) {
 	maxDistance := float32(8.0)
 	p.LookingAtBlock = false
 
-	// Posição inicial do voxel
+	// PosiÃ§Ã£o inicial do voxel
 	voxelX := int32(math.Floor(float64(rayOrigin.X)))
 	voxelY := int32(math.Floor(float64(rayOrigin.Y)))
 	voxelZ := int32(math.Floor(float64(rayOrigin.Z)))
 
-	// Direção do passo (1 ou -1)
+	// DireÃ§Ã£o do passo (1 ou -1)
 	stepX := int32(1)
 	if rayDir.X < 0 {
 		stepX = -1
@@ -382,12 +516,12 @@ func (p *Player) RaycastBlocks(world *World) {
 		tDeltaZ = float32(math.MaxFloat32)
 	}
 
-	// Armazenar voxel anterior para colocação de blocos
+	// Armazenar voxel anterior para colocaÃ§Ã£o de blocos
 	prevVoxelX, prevVoxelY, prevVoxelZ := voxelX, voxelY, voxelZ
 
 	// DDA traversal
 	for t := float32(0); t < maxDistance; {
-		// Verificar se o voxel atual contém um bloco
+		// Verificar se o voxel atual contÃ©m um bloco
 		if world.GetBlock(voxelX, voxelY, voxelZ) != BlockAir {
 			p.LookingAtBlock = true
 			p.TargetBlock = rl.NewVector3(float32(voxelX), float32(voxelY), float32(voxelZ))
@@ -395,10 +529,10 @@ func (p *Player) RaycastBlocks(world *World) {
 			return
 		}
 
-		// Armazenar voxel atual antes de avançar
+		// Armazenar voxel atual antes de avanÃ§ar
 		prevVoxelX, prevVoxelY, prevVoxelZ = voxelX, voxelY, voxelZ
 
-		// Avançar para o próximo voxel
+		// AvanÃ§ar para o prÃ³ximo voxel
 		if tMaxX < tMaxY {
 			if tMaxX < tMaxZ {
 				voxelX += stepX

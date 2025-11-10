@@ -39,6 +39,7 @@ Controles padrao:
 - Botao esquerdo: remover bloco
 - Botao direito: colocar bloco
 - `P`: alternar fly mode (`Shift` sobe, `Ctrl` desce)
+- `V`: alternar entre primeira e terceira pessoa (com transição suave)
 - `Esc`: sair
 
 ## Estrutura do Projeto
