@@ -301,17 +301,22 @@ func TestPlayerPlaceBlock(t *testing.T) {
 	input := &SimulatedInput{}
 	simulateFrames(player, world, input, 60)
 
-	// Olhar para baixo (mirar no chão)
-	player.Pitch = -1.5
+	// Mover o jogador um pouco para garantir que ele não esteja exatamente no centro
+	player.Position.X = 16.5
+	player.Position.Z = 16.5
+
+	// Olhar para baixo e para frente (mirar no chão a frente)
+	player.Yaw = 0
+	player.Pitch = -0.8
 
 	player.Update(1.0/60.0, world, input)
 
 	if !player.LookingAtBlock {
-		t.Fatalf("Player deveria estar mirando no chão. Pos: (%.2f, %.2f, %.2f)",
+		t.Fatalf("Player deveria estar mirando em um bloco. Pos: (%.2f, %.2f, %.2f)",
 			player.Position.X, player.Position.Y, player.Position.Z)
 	}
 
-	// Salvar posição onde o bloco será colocado (em cima do chão)
+	// Salvar posição onde o bloco será colocado
 	placeX := int32(player.PlaceBlock.X)
 	placeY := int32(player.PlaceBlock.Y)
 	placeZ := int32(player.PlaceBlock.Z)
@@ -328,8 +333,8 @@ func TestPlayerPlaceBlock(t *testing.T) {
 	// Verificar que o bloco foi colocado
 	placedBlock := world.GetBlock(placeX, placeY, placeZ)
 	if placedBlock != BlockStone {
-		t.Errorf("Bloco deveria ter sido colocado em (%d,%d,%d). Tipo esperado: %v, Tipo atual: %v",
-			placeX, placeY, placeZ, BlockStone, placedBlock)
+		t.Errorf("Bloco deveria ter sido colocado em (%d,%d,%d). Tipo esperado: %v, Tipo atual: %v. Player pos: (%.2f, %.2f, %.2f)",
+			placeX, placeY, placeZ, BlockStone, placedBlock, player.Position.X, player.Position.Y, player.Position.Z)
 	}
 }
 
@@ -348,6 +353,41 @@ func TestPlayerPlaceBlock_CannotPlaceWithoutTarget(t *testing.T) {
 	// (o teste é indireto: verificamos que LookingAtBlock é false)
 	if player.LookingAtBlock {
 		t.Error("Player não deveria estar mirando em nada")
+	}
+}
+
+func TestPlayerPlaceBlock_CannotPlaceInOwnPosition(t *testing.T) {
+	world := createFlatWorld()
+	player := NewPlayer(rl.NewVector3(16, 12, 16))
+
+	// Estabilizar
+	input := &SimulatedInput{}
+	simulateFrames(player, world, input, 60)
+
+	// Olhar para baixo (mirar no chão próximo aos pés)
+	player.Pitch = -1.5
+
+	player.Update(1.0/60.0, world, input)
+
+	if !player.LookingAtBlock {
+		t.Fatalf("Player deveria estar mirando no chão. Pos: (%.2f, %.2f, %.2f)",
+			player.Position.X, player.Position.Y, player.Position.Z)
+	}
+
+	// Salvar posição onde tentaria colocar o bloco
+	placeX := int32(player.PlaceBlock.X)
+	placeY := int32(player.PlaceBlock.Y)
+	placeZ := int32(player.PlaceBlock.Z)
+
+	// Simular click direito para tentar colocar bloco
+	input.RightClick = true
+	player.Update(1.0/60.0, world, input)
+
+	// Verificar que o bloco NÃO foi colocado (porque colidiria com o jogador)
+	placedBlock := world.GetBlock(placeX, placeY, placeZ)
+	if placedBlock != BlockAir {
+		t.Errorf("Bloco NÃO deveria ter sido colocado em (%d,%d,%d) pois colidiria com o jogador. Tipo atual: %v",
+			placeX, placeY, placeZ, placedBlock)
 	}
 }
 
