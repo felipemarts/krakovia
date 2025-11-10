@@ -4,26 +4,28 @@ import (
 	"fmt"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
+
+	"krakovia/internal/game"
 )
 
 func main() {
-	rl.InitWindow(screenWidth, screenHeight, "Krakovia - Minecraft em Go")
+	rl.InitWindow(game.ScreenWidth, game.ScreenHeight, "Krakovia - Minecraft em Go")
 	defer rl.CloseWindow()
 
 	rl.SetTargetFPS(60)
 	rl.DisableCursor()
 
 	// Inicializar jogador
-	player := NewPlayer(rl.NewVector3(16, 16, 16))
+	player := game.NewPlayer(rl.NewVector3(16, 16, 16))
 
 	// Inicializar mundo
-	world := NewWorld()
+	world := game.NewWorld()
 
 	// Inicializar gráficos do mundo (depois de InitWindow)
 	world.InitWorldGraphics()
 
 	// Input real do Raylib
-	input := &RaylibInput{}
+	input := &game.RaylibInput{}
 
 	// Loop principal do jogo
 	for !rl.WindowShouldClose() {
@@ -68,7 +70,7 @@ func main() {
 }
 
 // renderUI desenha a interface do usuário
-func renderUI(player *Player, world *World) {
+func renderUI(player *game.Player, world *game.World) {
 	rl.DrawText("WASD - Mover | Espaço - Pular | Mouse - Olhar | P - Fly Mode", 10, 10, 20, rl.Black)
 	rl.DrawText("Click Esquerdo - Remover | Click Direito - Colocar", 10, 35, 20, rl.Black)
 
@@ -84,16 +86,16 @@ func renderUI(player *Player, world *World) {
 	yOffset += 25
 
 	// Mostrar chunk atual do jogador
-	playerChunk := GetChunkCoordFromFloat(player.Position.X, player.Position.Y, player.Position.Z)
+	playerChunk := game.GetChunkCoordFromFloat(player.Position.X, player.Position.Y, player.Position.Z)
 	rl.DrawText(fmt.Sprintf("Chunk: (%d, %d, %d)", playerChunk.X, playerChunk.Y, playerChunk.Z), 10, yOffset, 20, rl.Black)
 	yOffset += 25
 
 	totalBlocks := world.GetTotalBlocks()
 	chunksLoaded := world.GetLoadedChunksCount()
 	rl.DrawText(fmt.Sprintf("Blocos: %d | Chunks: %d", totalBlocks, chunksLoaded), 10, yOffset, 20, rl.Black)
-	rl.DrawText(fmt.Sprintf("FPS: %d", rl.GetFPS()), 10, screenHeight-30, 20, rl.Green)
+	rl.DrawText(fmt.Sprintf("FPS: %d", rl.GetFPS()), 10, game.ScreenHeight-30, 20, rl.Green)
 
 	// Crosshair
-	rl.DrawLine(screenWidth/2-10, screenHeight/2, screenWidth/2+10, screenHeight/2, rl.White)
-	rl.DrawLine(screenWidth/2, screenHeight/2-10, screenWidth/2, screenHeight/2+10, rl.White)
+	rl.DrawLine(game.ScreenWidth/2-10, game.ScreenHeight/2, game.ScreenWidth/2+10, game.ScreenHeight/2, rl.White)
+	rl.DrawLine(game.ScreenWidth/2, game.ScreenHeight/2-10, game.ScreenWidth/2, game.ScreenHeight/2+10, rl.White)
 }

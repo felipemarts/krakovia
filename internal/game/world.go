@@ -1,4 +1,4 @@
-package main
+package game
 
 import (
 	rl "github.com/gen2brain/raylib-go/raylib"
@@ -27,7 +27,7 @@ func NewWorld() *World {
 // InitWorldGraphics inicializa recursos gráficos do mundo (deve ser chamado após rl.InitWindow)
 func (w *World) InitWorldGraphics() {
 	// Carregar texture atlas
-	w.TextureAtlas = rl.LoadTexture("texture_atlas.png")
+	w.TextureAtlas = rl.LoadTexture("assets/texture_atlas.png")
 
 	// Configurar filtro de textura para pixel art (sem blur)
 	rl.SetTextureFilter(w.TextureAtlas, rl.FilterPoint)

@@ -1,4 +1,4 @@
-package main
+package game
 
 // BlockType representa o tipo de um bloco no mundo
 type BlockType uint8

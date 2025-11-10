@@ -1,98 +1,66 @@
-# Krakovia - Minecraft em Go com Raylib
+# Krakovia
 
-Um jogo estilo Minecraft desenvolvido em Go usando a biblioteca Raylib.
+Sandbox voxel em Go que recria mecanicas basicas de jogos estilo Minecraft usando o binding `raylib-go`.
 
-## Recursos
-
-- Movimentação com WASD
-- Controle de câmera com mouse
-- Sistema de pulo e gravidade
-- Colocação de blocos (botão direito do mouse)
-- Remoção de blocos (botão esquerdo do mouse)
-- Detecção de colisão com blocos
-- Geração procedural de terreno
-- Três tipos de blocos: Grama, Terra e Pedra
+## Visao Geral
+- Motor de chunks 32x32x32 com streaming dinamico via `ChunkManager`.
+- Sistema completo de jogador em terceira pessoa com fisica, pulo, modo fly e deteccao precisa de colisao cilidrica.
+- Interacao com blocos via raycasting, highlight visual e suporte a colocar/remover blocos.
+- Renderizacao baseada em meshes combinadas por chunk e atlas de texturas localizado em `assets/texture_atlas.png`.
+- Suite extensa de testes (stress, diagnostico, real scenario) para validar FPS, carregamento e colisao.
 
 ## Requisitos
+- Go 1.21+ (o modulo usa 1.23.1).
+- Toolchain C para compilar Raylib.
+  - Windows: MinGW-w64/TDM-GCC.
+  - Linux: `sudo apt install build-essential`.
+  - macOS: Xcode Command Line Tools.
 
-- Go 1.21 ou superior
-- GCC (para compilar raylib)
-  - Windows: MinGW-w64 ou TDM-GCC
-  - Linux: `sudo apt install build-essential`
-  - macOS: Xcode Command Line Tools
-
-## Instalação
-
-1. Clone o repositório:
+## Instalacao
 ```bash
 git clone <url-do-repositorio>
 cd krakovia
-```
-
-2. Baixe as dependências:
-```bash
 go mod download
 ```
 
-## Como Jogar
-
-1. Execute o jogo:
+## Como Executar
 ```bash
-go run main.go
+# build e execute direto
+go run .
+
+# ou gere um executavel
+go build -o krakovia.exe .
 ```
 
-2. Controles:
-   - **W/A/S/D** - Movimentação
-   - **Espaço** - Pular
-   - **Mouse** - Olhar ao redor
-   - **Botão Esquerdo do Mouse** - Remover bloco
-   - **Botão Direito do Mouse** - Colocar bloco
-   - **ESC** - Sair
+Controles padrao:
+- `W/A/S/D` movimentacao
+- `Espaco` pular
+- `Mouse` olhar
+- Botao esquerdo: remover bloco
+- Botao direito: colocar bloco
+- `P`: alternar fly mode (`Shift` sobe, `Ctrl` desce)
+- `Esc`: sair
 
-## Estrutura do Código
-
-- `main.go` - Arquivo principal contendo toda a lógica do jogo
-  - **Player** - Sistema de jogador com física e controles
-  - **World** - Sistema de mundo voxel com geração de terreno
-  - **BlockType** - Tipos de blocos disponíveis
-
-## Recursos Implementados
-
-### Sistema de Física
-- Gravidade realista
-- Detecção de colisão em 3D
-- Pulo com verificação de chão
-
-### Sistema de Mundo
-- Armazenamento eficiente de blocos usando hashmap
-- Geração procedural de terreno com variação de altura
-- Diferentes camadas: superfície (grama), subsolo (terra), profundo (pedra)
-
-### Sistema de Interação
-- Raycasting para detectar blocos
-- Visualização do bloco selecionado
-- Colocação e remoção de blocos
-
-## Melhorias Futuras
-
-- Sistema de chunks para mundos maiores
-- Mais tipos de blocos
-- Texturas
-- Iluminação
-- Água
-- Geração de mundo com Perlin Noise
-- Inventário
-- Diferentes ferramentas
-- Sons
-
-## Compilação
-
-Para compilar o executável:
-
-```bash
-go build -o krakovia.exe main.go
+## Estrutura do Projeto
+```
+main.go             # ponto de entrada do jogo
+internal/game       # logica principal (chunks, player, input, testes)
+assets/             # recursos estaticos (texture_atlas.png)
+docs/               # materiais auxiliares (SOLUTION_SUMMARY.md, TESTING.md)
+go.mod / go.sum     # definicao do modulo Go
 ```
 
-## Licença
+o pacote `internal/game` expõe `NewPlayer`, `NewWorld`, `RaylibInput` e constantes de configuracao (`ScreenWidth`, `ScreenHeight`, etc.), e `main.go` apenas orquestra a inicializacao e o loop principal.
 
-MIT
+## Testes
+```bash
+go test ./...
+```
+
+- Casos especificos e metodologia: `docs/TESTING.md`.
+- Relatos de investigacoes anteriores: `docs/SOLUTION_SUMMARY.md`.
+
+## Proximos Passos Sugeridos
+1. Expandir o atlas e o gerador procedural para suportar novos blocos.
+2. Adicionar pipeline de CI simples que rode `go test ./...` a cada commit.
+3. Versionar binarios gerados (ex.: `krakovia.exe`) fora do repo final usando `.gitignore`.
