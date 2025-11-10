@@ -176,8 +176,17 @@ func (p *Player) Update(dt float32, world *World, input Input) {
 	}
 
 	if input.IsRightClickPressed() && p.LookingAtBlock {
-		// Colocar bloco
-		world.SetBlock(int32(p.PlaceBlock.X), int32(p.PlaceBlock.Y), int32(p.PlaceBlock.Z), BlockStone)
+		// Colocar bloco - mas verificar se não colide com o jogador
+		placePos := rl.NewVector3(
+			float32(int32(p.PlaceBlock.X))+0.5,
+			float32(int32(p.PlaceBlock.Y)),
+			float32(int32(p.PlaceBlock.Z))+0.5,
+		)
+
+		// Verificar se o bloco que vai ser colocado não colide com o jogador
+		if !p.wouldBlockCollideWithPlayer(placePos) {
+			world.SetBlock(int32(p.PlaceBlock.X), int32(p.PlaceBlock.Y), int32(p.PlaceBlock.Z), BlockStone)
+		}
 	}
 }
 
@@ -380,6 +389,38 @@ func (p *Player) ApplyMovement(dt float32, world *World) {
 	if p.CheckCollision(checkBelowPos, world) {
 		p.IsOnGround = true
 	}
+}
+
+// wouldBlockCollideWithPlayer verifica se um bloco na posição dada colidiria com o jogador
+func (p *Player) wouldBlockCollideWithPlayer(blockPos rl.Vector3) bool {
+	// blockPos é o centro do bloco (x+0.5, y, z+0.5)
+	// Verificar colisão do cilindro do jogador com o bloco
+
+	// Distância horizontal do centro do jogador ao centro do bloco
+	dx := p.Position.X - blockPos.X
+	dz := p.Position.Z - blockPos.Z
+	distSq := dx*dx + dz*dz
+
+	// Colisão horizontal (cilíndrica)
+	maxDist := p.Radius + 0.5
+	if distSq >= maxDist*maxDist {
+		return false // Muito longe horizontalmente
+	}
+
+	// Colisão vertical
+	// O bloco ocupa de blockPos.Y até blockPos.Y+1
+	// O jogador ocupa de p.Position.Y até p.Position.Y+p.Height
+	blockBottom := blockPos.Y
+	blockTop := blockPos.Y + 1.0
+	playerBottom := p.Position.Y
+	playerTop := p.Position.Y + p.Height
+
+	// Verificar se há sobreposição vertical
+	if playerTop <= blockBottom || playerBottom >= blockTop {
+		return false // Sem sobreposição vertical
+	}
+
+	return true // Colide!
 }
 
 func (p *Player) CheckCollision(newPos rl.Vector3, world *World) bool {
