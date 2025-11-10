@@ -332,12 +332,6 @@ func (p *Player) RenderPlayer() {
 	rl.DrawSphere(bottomSpherePos, p.Radius, rl.Blue)
 	rl.DrawSphereWires(bottomSpherePos, p.Radius, 8, 8, rl.DarkBlue)
 
-	// Indicador de direÃ§Ã£o (pequeno cubo na frente)
-	dirX := float32(math.Sin(float64(p.Yaw))) * (p.Radius + 0.1)
-	dirZ := float32(math.Cos(float64(p.Yaw))) * (p.Radius + 0.1)
-	dirPos := rl.NewVector3(p.Position.X+dirX, p.Position.Y+p.Height/2, p.Position.Z+dirZ)
-	rl.DrawCube(dirPos, 0.1, 0.1, 0.1, rl.Red)
-
 	// Visualizar cilindro de colisÃ£o (semi-transparente)
 	collisionPos := rl.NewVector3(p.Position.X, p.Position.Y+p.Height/2, p.Position.Z)
 	rl.DrawCylinderWires(collisionPos, p.Radius, p.Radius, p.Height, 12, rl.Yellow)
