@@ -315,7 +315,14 @@ func clamp01(value float32) float32 {
 }
 
 func (p *Player) RenderPlayer() {
-	// Visual temporarily disabled
+	base := rl.NewVector3(p.Position.X, p.Position.Y, p.Position.Z)
+	top := rl.NewVector3(p.Position.X, p.Position.Y+p.Height, p.Position.Z)
+
+	fillColor := rl.Color{R: 255, G: 229, B: 153, A: 80}
+	wireColor := rl.Color{R: 255, G: 140, B: 0, A: 255}
+
+	rl.DrawCylinderEx(base, top, p.Radius, p.Radius, 20, fillColor)
+	rl.DrawCylinderWiresEx(base, top, p.Radius, p.Radius, 12, wireColor)
 }
 
 func (p *Player) ApplyMovement(dt float32, world *World) {
