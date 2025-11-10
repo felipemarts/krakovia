@@ -315,30 +315,7 @@ func clamp01(value float32) float32 {
 }
 
 func (p *Player) RenderPlayer() {
-	// Desenhar cÃ¡psula representando o jogador
-	// Corpo (cilindro)
-	bodyHeight := p.Height - p.Radius*2
-	bodyPos := rl.NewVector3(p.Position.X, p.Position.Y+p.Radius+bodyHeight/2, p.Position.Z)
-	rl.DrawCylinder(bodyPos, p.Radius, p.Radius, bodyHeight, 8, rl.Blue)
-	rl.DrawCylinderWires(bodyPos, p.Radius, p.Radius, bodyHeight, 8, rl.DarkBlue)
-
-	// Esfera superior (cabeÃ§a)
-	topSpherePos := rl.NewVector3(p.Position.X, p.Position.Y+p.Height-p.Radius, p.Position.Z)
-	rl.DrawSphere(topSpherePos, p.Radius, rl.Blue)
-	rl.DrawSphereWires(topSpherePos, p.Radius, 8, 8, rl.DarkBlue)
-
-	// Esfera inferior (pÃ©s)
-	bottomSpherePos := rl.NewVector3(p.Position.X, p.Position.Y+p.Radius, p.Position.Z)
-	rl.DrawSphere(bottomSpherePos, p.Radius, rl.Blue)
-	rl.DrawSphereWires(bottomSpherePos, p.Radius, 8, 8, rl.DarkBlue)
-
-	// Visualizar cilindro de colisÃ£o (semi-transparente)
-	collisionPos := rl.NewVector3(p.Position.X, p.Position.Y+p.Height/2, p.Position.Z)
-	rl.DrawCylinderWires(collisionPos, p.Radius, p.Radius, p.Height, 12, rl.Yellow)
-
-	// Desenhar cÃ­rculo no chÃ£o mostrando o raio de colisÃ£o
-	floorPos := rl.NewVector3(p.Position.X, p.Position.Y+0.01, p.Position.Z)
-	rl.DrawCircle3D(floorPos, p.Radius, rl.NewVector3(1, 0, 0), 90, rl.Fade(rl.Yellow, 0.3))
+	// Visual temporarily disabled
 }
 
 func (p *Player) ApplyMovement(dt float32, world *World) {
