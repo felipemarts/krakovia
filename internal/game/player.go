@@ -36,6 +36,7 @@ type Player struct {
 	ThirdPersonDistance float32
 	FirstPersonDistance float32
 	FlyMode             bool
+	ShowCollisionBody   bool
 }
 
 func NewPlayer(position rl.Vector3) *Player {
@@ -76,6 +77,11 @@ func (p *Player) Update(dt float32, world *World, input Input) {
 	// Alternar modos de cÃ¢mera com a tecla V
 	if input.IsCameraTogglePressed() {
 		p.FirstPerson = !p.FirstPerson
+	}
+
+	// Toggle visualização do corpo de colisão com tecla K
+	if input.IsCollisionTogglePressed() {
+		p.ShowCollisionBody = !p.ShowCollisionBody
 	}
 
 	// Controle do mouse
@@ -324,6 +330,10 @@ func clamp01(value float32) float32 {
 }
 
 func (p *Player) RenderPlayer() {
+	if !p.ShowCollisionBody {
+		return
+	}
+
 	base := rl.NewVector3(p.Position.X, p.Position.Y, p.Position.Z)
 	top := rl.NewVector3(p.Position.X, p.Position.Y+p.Height, p.Position.Z)
 

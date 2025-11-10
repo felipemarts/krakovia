@@ -73,8 +73,8 @@ func main() {
 
 // renderUI desenha a interface do usuário
 func renderUI(player *game.Player, world *game.World) {
-	rl.DrawText("WASD - Mover | Espaço - Pular | Mouse - Olhar | P - Fly Mode", 10, 10, 20, rl.Black)
-	rl.DrawText("Click Esquerdo - Remover | Click Direito - Colocar", 10, 35, 20, rl.Black)
+	rl.DrawText("WASD - Mover | Espaço - Pular | Mouse - Olhar | P - Fly Mode | K - Collision Body", 10, 10, 20, rl.Black)
+	rl.DrawText("Click Esquerdo - Remover | Click Direito - Colocar | V - Alternar Câmera", 10, 35, 20, rl.Black)
 
 	yOffset := int32(60)
 
