@@ -115,6 +115,7 @@ type Player struct {
 	FlyMode             bool
 	ShowCollisionBody   bool
 	Model               *PlayerModel
+	ModelOpacity        float32 // Opacidade do modelo (0.0 = transparente, 1.0 = opaco)
 }
 
 func NewPlayer(position rl.Vector3) *Player {
@@ -128,10 +129,11 @@ func NewPlayer(position rl.Vector3) *Player {
 		CameraDistance:      5.0,
 		ThirdPersonDistance: 5.0,
 		FirstPersonDistance: 0.35,
+		ModelOpacity:        1.0, // Começa opaco
 	}
 
 	// Carregar modelo 3D do player
-	player.Model = LoadPlayerModel("assets/model2.glb")
+	player.Model = LoadPlayerModel("assets/model.glb")
 
 	// CÃ¢mera em terceira pessoa
 	player.Camera = rl.Camera3D{
@@ -349,6 +351,29 @@ func (p *Player) updateCamera(dt float32, world *World) {
 
 	p.Camera.Position = cameraPos
 	p.Camera.Target = cameraTarget
+
+	// Atualizar opacidade do modelo baseado na distância real da câmera
+	// Usar collisionDistance (distância real após colisões) ou CameraDistance
+	actualDistance := collisionDistance
+	if useFirstPerson {
+		actualDistance = 0.0 // Em primeira pessoa, distância é zero
+	}
+
+	// Quando está em primeira pessoa ou muito próximo, modelo fica totalmente transparente
+	fadeStartDistance := float32(2.0) // Distância em que começa a ficar transparente
+	fadeEndDistance := float32(0.8)   // Distância em que fica totalmente transparente
+
+	if actualDistance <= fadeEndDistance {
+		// Totalmente transparente em primeira pessoa ou muito próximo
+		p.ModelOpacity = 0.0
+	} else if actualDistance <= fadeStartDistance {
+		// Transição suave de opaco para transparente
+		fadeRange := fadeStartDistance - fadeEndDistance
+		p.ModelOpacity = (actualDistance - fadeEndDistance) / fadeRange
+	} else {
+		// Totalmente opaco em terceira pessoa
+		p.ModelOpacity = 1.0
+	}
 }
 
 func (p *Player) resolveCameraCollision(world *World, pivot, backward rl.Vector3, desired float32) float32 {
@@ -416,16 +441,20 @@ func clamp01(value float32) float32 {
 }
 
 func (p *Player) RenderPlayer() {
-	// Renderizar modelo 3D se disponível
-	if p.Model != nil && p.Model.IsLoaded {
+	// Renderizar modelo 3D se disponível e visível
+	if p.Model != nil && p.Model.IsLoaded && p.ModelOpacity > 0.0 {
 		// Posição do modelo (centralizado na posição do player)
 		modelPos := rl.NewVector3(p.Position.X, p.Position.Y, p.Position.Z)
 
 		// Escala do modelo (ajustar conforme necessário)
 		scale := float32(1.0)
 
-		// Renderizar o modelo com animação
-		rl.DrawModel(p.Model.Model, modelPos, scale, rl.White)
+		// Criar cor com opacidade baseada na distância da câmera
+		alpha := uint8(p.ModelOpacity * 255.0)
+		tintColor := rl.Color{R: 255, G: 255, B: 255, A: alpha}
+
+		// Renderizar o modelo com animação e transparência
+		rl.DrawModel(p.Model.Model, modelPos, scale, tintColor)
 	}
 
 	// Renderizar corpo de colisão se ativado
