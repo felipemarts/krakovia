@@ -11,7 +11,7 @@ import (
 func main() {
 	rl.SetTraceLogLevel(rl.LogWarning)
 
-	rl.InitWindow(game.ScreenWidth, game.ScreenHeight, "Krakovia - Minecraft em Go")
+	rl.InitWindow(game.ScreenWidth, game.ScreenHeight, "Krakovia")
 	defer rl.CloseWindow()
 
 	rl.SetTargetFPS(60)

@@ -432,7 +432,7 @@ func (p *Player) RaycastBlocks(world *World) {
 	rayOrigin := p.Camera.Position
 	rayDir := rl.Vector3Normalize(rl.Vector3Subtract(p.Camera.Target, p.Camera.Position))
 
-	maxDistance := float32(8.0)
+	maxDistance := float32(10.0)
 	p.LookingAtBlock = false
 
 	// PosiÃ§Ã£o inicial do voxel
