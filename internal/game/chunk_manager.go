@@ -258,11 +258,8 @@ func (cm *ChunkManager) UpdatePendingMeshes(maxMeshUpdatesPerFrame int, atlas *D
 	return meshesUpdated
 }
 
-// Render renderiza todos os chunks carregados com gerenciamento dinâmico de atlas
+// Render renderiza todos os chunks carregados usando atlas por chunk
 func (cm *ChunkManager) Render(grassMesh, dirtMesh, stoneMesh rl.Mesh, material rl.Material, playerPos rl.Vector3, visibleBlocks *VisibleBlocksTracker, atlas *DynamicAtlasManager) {
-	// OTIMIZAÇÃO: Gerenciar atlas apenas no início (não a cada frame)
-	// O atlas é construído uma vez e só muda quando novos chunks são carregados
-
 	// Atualizar meshes pendentes (máximo 3 por frame)
 	const maxMeshUpdatesPerFrame = 3
 	cm.UpdatePendingMeshes(maxMeshUpdatesPerFrame, atlas)
@@ -277,8 +274,9 @@ func (cm *ChunkManager) Render(grassMesh, dirtMesh, stoneMesh rl.Mesh, material 
 		distSq := dx*dx + dy*dy + dz*dz
 
 		if distSq <= float32(cm.RenderDistance*cm.RenderDistance) {
-			if chunk.ChunkMesh.Uploaded {
-				rl.DrawMesh(chunk.ChunkMesh.Mesh, material, rl.MatrixIdentity())
+			if chunk.ChunkMesh.Uploaded && chunk.ChunkAtlas.IsUploaded {
+				// Usar o material específico do chunk (com seu próprio atlas)
+				rl.DrawMesh(chunk.ChunkMesh.Mesh, chunk.ChunkAtlas.Material, rl.MatrixIdentity())
 			}
 		}
 	}

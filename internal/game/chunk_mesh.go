@@ -142,6 +142,115 @@ func (cm *ChunkMesh) AddQuad(x, y, z float32, face int, blockType BlockType, atl
 	)
 }
 
+// AddQuadWithChunkAtlas adiciona um quad usando o atlas do chunk
+func (cm *ChunkMesh) AddQuadWithChunkAtlas(x, y, z float32, face int, blockType BlockType, chunkAtlas *ChunkAtlas) {
+	// Obter UVs do atlas do chunk
+	uMin, vMin, uMax, vMax := chunkAtlas.GetBlockUVs(blockType)
+
+	vertexOffset := uint16(len(cm.Vertices) / 3)
+
+	// Definir vértices e normais baseado na face
+	switch face {
+	case 0: // Face +X (direita)
+		cm.Vertices = append(cm.Vertices,
+			x+1, y, z,
+			x+1, y+1, z,
+			x+1, y+1, z+1,
+			x+1, y, z+1,
+		)
+		cm.Normals = append(cm.Normals,
+			1, 0, 0,
+			1, 0, 0,
+			1, 0, 0,
+			1, 0, 0,
+		)
+
+	case 1: // Face -X (esquerda)
+		cm.Vertices = append(cm.Vertices,
+			x, y, z+1,
+			x, y+1, z+1,
+			x, y+1, z,
+			x, y, z,
+		)
+		cm.Normals = append(cm.Normals,
+			-1, 0, 0,
+			-1, 0, 0,
+			-1, 0, 0,
+			-1, 0, 0,
+		)
+
+	case 2: // Face +Y (topo)
+		cm.Vertices = append(cm.Vertices,
+			x, y+1, z,
+			x, y+1, z+1,
+			x+1, y+1, z+1,
+			x+1, y+1, z,
+		)
+		cm.Normals = append(cm.Normals,
+			0, 1, 0,
+			0, 1, 0,
+			0, 1, 0,
+			0, 1, 0,
+		)
+
+	case 3: // Face -Y (fundo)
+		cm.Vertices = append(cm.Vertices,
+			x, y, z+1,
+			x, y, z,
+			x+1, y, z,
+			x+1, y, z+1,
+		)
+		cm.Normals = append(cm.Normals,
+			0, -1, 0,
+			0, -1, 0,
+			0, -1, 0,
+			0, -1, 0,
+		)
+
+	case 4: // Face +Z (frente)
+		cm.Vertices = append(cm.Vertices,
+			x+1, y, z+1,
+			x+1, y+1, z+1,
+			x, y+1, z+1,
+			x, y, z+1,
+		)
+		cm.Normals = append(cm.Normals,
+			0, 0, 1,
+			0, 0, 1,
+			0, 0, 1,
+			0, 0, 1,
+		)
+
+	case 5: // Face -Z (trás)
+		cm.Vertices = append(cm.Vertices,
+			x, y, z,
+			x, y+1, z,
+			x+1, y+1, z,
+			x+1, y, z,
+		)
+		cm.Normals = append(cm.Normals,
+			0, 0, -1,
+			0, 0, -1,
+			0, 0, -1,
+			0, 0, -1,
+		)
+	}
+
+	// UVs
+	cm.Texcoords = append(cm.Texcoords,
+		uMin, vMax,
+		uMin, vMin,
+		uMax, vMin,
+		uMax, vMax,
+	)
+
+	// Índices
+	cm.Indices = append(cm.Indices,
+		vertexOffset+0, vertexOffset+1, vertexOffset+2,
+		vertexOffset+0, vertexOffset+2, vertexOffset+3,
+	)
+}
+
 // UploadToGPU faz upload da mesh para a GPU
 func (cm *ChunkMesh) UploadToGPU() {
 	if len(cm.Vertices) == 0 {

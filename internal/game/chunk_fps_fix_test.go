@@ -71,7 +71,7 @@ func TestChunkLoading_FixValidation(t *testing.T) {
 	totalUpdated := 0
 
 	for pendingMeshes > 0 {
-		updated := world.ChunkManager.UpdatePendingMeshes(maxPerFrame)
+		updated := world.ChunkManager.UpdatePendingMeshes(maxPerFrame, world.DynamicAtlas)
 		totalUpdated += updated
 
 		if updated > maxPerFrame {
@@ -139,7 +139,7 @@ func TestChunkLoading_FixStressTest(t *testing.T) {
 
 		// Simular o que o Render() faz
 		const maxMeshUpdatesPerFrame = 3
-		meshesUpdated := world.ChunkManager.UpdatePendingMeshes(maxMeshUpdatesPerFrame)
+		meshesUpdated := world.ChunkManager.UpdatePendingMeshes(maxMeshUpdatesPerFrame, world.DynamicAtlas)
 
 		if meshesUpdated > maxMeshesInFrame {
 			maxMeshesInFrame = meshesUpdated
@@ -259,7 +259,7 @@ func TestChunkLoading_FixRealWorldScenario(t *testing.T) {
 		player.Update(dt, world, input)
 
 		// Simular Render()
-		meshesUpdated := world.ChunkManager.UpdatePendingMeshes(maxMeshUpdatesPerFrame)
+		meshesUpdated := world.ChunkManager.UpdatePendingMeshes(maxMeshUpdatesPerFrame, world.DynamicAtlas)
 		meshUpdatesPerFrame[i] = meshesUpdated
 
 		if meshesUpdated > maxInAnyFrame {

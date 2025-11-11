@@ -78,7 +78,7 @@ func TestChunkLoading_DiagnoseMeshGenerationTime(t *testing.T) {
 								neighborBlock := world.ChunkManager.GetBlock(wx+dir.dx, wy+dir.dy, wz+dir.dz)
 								if neighborBlock == BlockAir {
 									// Adicionar quad (geração de vertices - CPU)
-									chunk.ChunkMesh.AddQuad(float32(wx), float32(wy), float32(wz), faceIndex, blockType)
+									chunk.ChunkMesh.AddQuadWithChunkAtlas(float32(wx), float32(wy), float32(wz), faceIndex, blockType, chunk.ChunkAtlas)
 								}
 							}
 						}

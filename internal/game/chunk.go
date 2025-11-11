@@ -20,7 +20,8 @@ type ChunkCoord struct {
 type Chunk struct {
 	Coord            ChunkCoord
 	Blocks           [ChunkSize][ChunkHeight][ChunkSize]BlockType
-	ChunkMesh        *ChunkMesh // Mesh combinada de todo o chunk
+	ChunkMesh        *ChunkMesh  // Mesh combinada de todo o chunk
+	ChunkAtlas       *ChunkAtlas // Atlas de texturas específico deste chunk
 	NeedUpdateMeshes bool
 	IsGenerated      bool
 }
@@ -30,6 +31,7 @@ func NewChunk(x, y, z int32) *Chunk {
 	return &Chunk{
 		Coord:            ChunkCoord{X: x, Y: y, Z: z},
 		ChunkMesh:        NewChunkMesh(),
+		ChunkAtlas:       NewChunkAtlas(16, 32), // Atlas 8x8 = 64 slots
 		NeedUpdateMeshes: true,
 		IsGenerated:      false,
 	}
@@ -176,9 +178,13 @@ func (c *Chunk) UpdateMeshes(atlas *DynamicAtlasManager) {
 }
 
 // UpdateMeshesWithNeighbors atualiza meshes considerando chunks vizinhos
-func (c *Chunk) UpdateMeshesWithNeighbors(getBlockFunc func(x, y, z int32) BlockType, atlas *DynamicAtlasManager) {
+func (c *Chunk) UpdateMeshesWithNeighbors(getBlockFunc func(x, y, z int32) BlockType, globalAtlas *DynamicAtlasManager) {
 	// Limpar mesh anterior
 	c.ChunkMesh.Clear()
+
+	// Resetar atlas do chunk
+	c.ChunkAtlas.UsedBlocks = make(map[BlockType]int32)
+	c.ChunkAtlas.NeedsRebuild = true
 
 	// Posição mundial do chunk
 	worldX := c.Coord.X * ChunkSize
@@ -204,6 +210,9 @@ func (c *Chunk) UpdateMeshesWithNeighbors(getBlockFunc func(x, y, z int32) Block
 					continue
 				}
 
+				// Adicionar tipo de bloco ao atlas do chunk
+				c.ChunkAtlas.AddBlockType(blockType)
+
 				// Calcular posição mundial do bloco
 				wx := worldX + x
 				wy := worldY + y
@@ -215,12 +224,18 @@ func (c *Chunk) UpdateMeshesWithNeighbors(getBlockFunc func(x, y, z int32) Block
 
 					// Se o vizinho é ar, a face está exposta
 					if neighborBlock == BlockAir {
-						// Adicionar quad para esta face
-						c.ChunkMesh.AddQuad(float32(wx), float32(wy), float32(wz), faceIndex, blockType, atlas)
+						// Adicionar quad para esta face usando o atlas do chunk
+						c.ChunkMesh.AddQuadWithChunkAtlas(float32(wx), float32(wy), float32(wz), faceIndex, blockType, c.ChunkAtlas)
 					}
 				}
 			}
 		}
+	}
+
+	// Rebuildar atlas do chunk se necessário
+	if c.ChunkAtlas.NeedsRebuild && globalAtlas != nil {
+		c.ChunkAtlas.RebuildAtlas(globalAtlas.TextureCache)
+		c.ChunkAtlas.UploadToGPU()
 	}
 
 	// Upload mesh para GPU

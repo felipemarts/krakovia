@@ -40,11 +40,14 @@ func TestPerformance_MeshUpdate(t *testing.T) {
 	chunk := NewChunk(0, 0, 0)
 	chunk.GenerateTerrain()
 
+	// Criar um DynamicAtlas para o teste
+	atlas := NewDynamicAtlasManager(4, 32)
+
 	start := time.Now()
 
 	// Atualizar mesh 100 vezes
 	for i := 0; i < 100; i++ {
-		chunk.UpdateMeshes()
+		chunk.UpdateMeshes(atlas)
 	}
 
 	elapsed := time.Since(start)
@@ -235,9 +238,12 @@ func BenchmarkUpdateMeshes(b *testing.B) {
 	chunk := NewChunk(0, 0, 0)
 	chunk.GenerateTerrain()
 
+	// Criar um DynamicAtlas para o benchmark
+	atlas := NewDynamicAtlasManager(4, 32)
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		chunk.UpdateMeshes()
+		chunk.UpdateMeshes(atlas)
 	}
 }
 
