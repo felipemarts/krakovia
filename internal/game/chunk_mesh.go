@@ -30,8 +30,13 @@ func NewChunkMesh() *ChunkMesh {
 }
 
 // AddQuad adiciona um quad (face de bloco) à mesh
-func (cm *ChunkMesh) AddQuad(x, y, z float32, face int, blockType BlockType) {
-	uMin, vMin, uMax, vMax := GetBlockUVs(blockType)
+func (cm *ChunkMesh) AddQuad(x, y, z float32, face int, blockType BlockType, atlas *DynamicAtlasManager) {
+	var uMin, vMin, uMax, vMax float32
+	if atlas != nil {
+		uMin, vMin, uMax, vMax = atlas.GetBlockUVs(blockType)
+	} else {
+		uMin, vMin, uMax, vMax = GetBlockUVs(blockType)
+	}
 
 	vertexOffset := uint16(len(cm.Vertices) / 3)
 

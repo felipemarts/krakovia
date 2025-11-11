@@ -8,6 +8,26 @@ const (
 	BlockGrass
 	BlockDirt
 	BlockStone
+	BlockWood
+	BlockLeaves
+	BlockSand
+	BlockGravel
+	BlockCobblestone
+	BlockPlanks
+	BlockBricks
+	BlockGlass
+	BlockIronOre
+	BlockGoldOre
+	BlockDiamondOre
+	BlockCoal
+	BlockSnow
+	BlockIce
+	BlockObsidian
+	BlockBedrock
+	BlockWater
+	BlockLava
+	BlockClay
+	BlockMoss
 )
 
 // GetBlockUVs retorna as coordenadas UV normalizadas (0-1) para um tipo de bloco
@@ -18,11 +38,51 @@ func GetBlockUVs(blockType BlockType) (uMin, vMin, uMax, vMax float32) {
 
 	switch blockType {
 	case BlockGrass:
-		row, col = 1, 1 // Segunda linha, segunda coluna (grass top)
+		row, col = 1, 1
 	case BlockDirt:
-		row, col = 1, 0 // Segunda linha, primeira coluna (dirt)
+		row, col = 1, 0
 	case BlockStone:
-		row, col = 1, 2 // Segunda linha, terceira coluna (stone)
+		row, col = 1, 2
+	case BlockWood:
+		row, col = 2, 0
+	case BlockLeaves:
+		row, col = 2, 1
+	case BlockSand:
+		row, col = 2, 2
+	case BlockGravel:
+		row, col = 3, 0
+	case BlockCobblestone:
+		row, col = 3, 1
+	case BlockPlanks:
+		row, col = 3, 2
+	case BlockBricks:
+		row, col = 4, 0
+	case BlockGlass:
+		row, col = 4, 1
+	case BlockIronOre:
+		row, col = 4, 2
+	case BlockGoldOre:
+		row, col = 5, 0
+	case BlockDiamondOre:
+		row, col = 5, 1
+	case BlockCoal:
+		row, col = 5, 2
+	case BlockSnow:
+		row, col = 6, 0
+	case BlockIce:
+		row, col = 6, 1
+	case BlockObsidian:
+		row, col = 6, 2
+	case BlockBedrock:
+		row, col = 7, 0
+	case BlockWater:
+		row, col = 7, 1
+	case BlockLava:
+		row, col = 7, 2
+	case BlockClay:
+		row, col = 0, 1
+	case BlockMoss:
+		row, col = 0, 2
 	default:
 		row, col = 0, 0 // Default: primeira textura
 	}

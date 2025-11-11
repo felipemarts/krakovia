@@ -33,6 +33,38 @@ func main() {
 	for !rl.WindowShouldClose() {
 		dt := rl.GetFrameTime()
 
+		// Comandos de debug para atlas dinâmico
+		if rl.IsKeyPressed(rl.KeyF1) {
+			// F1: Imprimir estatísticas do atlas
+			if world.DynamicAtlas != nil {
+				world.DynamicAtlas.PrintStats()
+			}
+		}
+
+		if rl.IsKeyPressed(rl.KeyF2) {
+			// F2: Salvar atlas atual em arquivo
+			if world.DynamicAtlas != nil {
+				err := world.DynamicAtlas.SaveAtlasDebug("debug_atlas.png")
+				if err != nil {
+					fmt.Printf("Erro ao salvar atlas: %v\n", err)
+				} else {
+					fmt.Println("Atlas salvo em debug_atlas.png")
+				}
+			}
+		}
+
+		if rl.IsKeyPressed(rl.KeyF3) {
+			// F3: Imprimir blocos visíveis
+			if world.VisibleBlocks != nil {
+				blocks := world.VisibleBlocks.GetRequiredBlocks()
+				fmt.Printf("Blocos visíveis: %d tipos\n", len(blocks))
+				for _, bt := range blocks {
+					fmt.Printf("  - BlockType %d (count: %d)\n",
+						bt, world.VisibleBlocks.BlockUsageCount[bt])
+				}
+			}
+		}
+
 		// Atualizar mundo (carrega/descarrega chunks baseado na posição do jogador)
 		world.Update(player.Position, dt)
 
@@ -75,8 +107,9 @@ func main() {
 func renderUI(player *game.Player, world *game.World) {
 	rl.DrawText("WASD - Mover | Espaço - Pular | Mouse - Olhar | P - Fly Mode | K - Collision Body", 10, 10, 20, rl.Black)
 	rl.DrawText("Click Esquerdo - Remover | Click Direito - Colocar | V - Alternar Câmera", 10, 35, 20, rl.Black)
+	rl.DrawText("F1 - Atlas Stats | F2 - Save Atlas | F3 - Visible Blocks", 10, 60, 20, rl.DarkGray)
 
-	yOffset := int32(60)
+	yOffset := int32(85)
 
 	// Mostrar status do modo fly
 	if player.FlyMode {

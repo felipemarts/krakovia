@@ -14,6 +14,7 @@ type ChunkManager struct {
 	LastPlayerChunk     ChunkCoord
 	UpdateCooldown      float32 // Tempo desde a última atualização de chunks
 	UpdateCooldownLimit float32 // Tempo mínimo entre atualizações (em segundos)
+	NewChunksLoaded     bool    // Flag para indicar que novos chunks foram carregados
 }
 
 // NewChunkManager cria um novo gerenciador de chunks
@@ -28,7 +29,7 @@ func NewChunkManager(renderDistance int32) *ChunkManager {
 }
 
 // Update atualiza os chunks baseado na posição do jogador
-func (cm *ChunkManager) Update(playerPos rl.Vector3, dt float32) {
+func (cm *ChunkManager) Update(playerPos rl.Vector3, dt float32, terrainGen *TerrainGenerator) {
 	// Incrementar cooldown
 	cm.UpdateCooldown += dt
 
@@ -37,7 +38,7 @@ func (cm *ChunkManager) Update(playerPos rl.Vector3, dt float32) {
 
 	// Se o cooldown passou, tentar carregar chunks gradualmente
 	if cm.UpdateCooldown >= cm.UpdateCooldownLimit {
-		cm.LoadChunksAroundPlayer(playerPos)
+		cm.LoadChunksAroundPlayer(playerPos, terrainGen)
 
 		// Se o jogador mudou de chunk, descarregar chunks distantes
 		if currentChunk != cm.LastPlayerChunk {
@@ -50,7 +51,7 @@ func (cm *ChunkManager) Update(playerPos rl.Vector3, dt float32) {
 }
 
 // LoadChunksAroundPlayer carrega chunks ao redor do jogador
-func (cm *ChunkManager) LoadChunksAroundPlayer(playerPos rl.Vector3) {
+func (cm *ChunkManager) LoadChunksAroundPlayer(playerPos rl.Vector3, terrainGen *TerrainGenerator) {
 	playerChunk := GetChunkCoordFromFloat(playerPos.X, playerPos.Y, playerPos.Z)
 
 	// Limitar o número de chunks carregados por frame para evitar lag
@@ -76,8 +77,18 @@ func (cm *ChunkManager) LoadChunksAroundPlayer(playerPos rl.Vector3) {
 						// Se o chunk não existe, criar e gerar
 						if _, exists := cm.Chunks[key]; !exists {
 							chunk := NewChunk(x, y, z)
-							chunk.GenerateTerrain()
+
+							// Usar o novo gerador de terreno se fornecido
+							if terrainGen != nil {
+								chunk.GenerateTerrainWithGenerator(terrainGen)
+							} else {
+								chunk.GenerateTerrain()
+							}
+
 							cm.Chunks[key] = chunk
+
+							// Marcar que novos chunks foram carregados
+							cm.NewChunksLoaded = true
 
 							// Marcar chunks vizinhos para atualização de meshes
 							// pois agora eles têm um novo vizinho
@@ -228,13 +239,13 @@ func (cm *ChunkManager) MarkChunkForUpdate(coord ChunkCoord) {
 }
 
 // UpdatePendingMeshes atualiza meshes pendentes com limite por frame
-func (cm *ChunkManager) UpdatePendingMeshes(maxMeshUpdatesPerFrame int) int {
+func (cm *ChunkManager) UpdatePendingMeshes(maxMeshUpdatesPerFrame int, atlas *DynamicAtlasManager) int {
 	meshesUpdated := 0
 
 	// Atualizar meshes com limite para evitar FPS drops
 	for _, chunk := range cm.Chunks {
 		if chunk.NeedUpdateMeshes {
-			chunk.UpdateMeshesWithNeighbors(cm.GetBlock)
+			chunk.UpdateMeshesWithNeighbors(cm.GetBlock, atlas)
 			meshesUpdated++
 
 			// Limitar atualizações por frame
@@ -247,27 +258,25 @@ func (cm *ChunkManager) UpdatePendingMeshes(maxMeshUpdatesPerFrame int) int {
 	return meshesUpdated
 }
 
-// Render renderiza todos os chunks carregados
-func (cm *ChunkManager) Render(grassMesh, dirtMesh, stoneMesh rl.Mesh, material rl.Material, playerPos rl.Vector3) {
-	// IMPORTANTE: Atualizar meshes pendentes ANTES de renderizar
-	// Limitamos a 3 mesh updates por frame para evitar FPS drops
-	const maxMeshUpdatesPerFrame = 3
-	cm.UpdatePendingMeshes(maxMeshUpdatesPerFrame)
+// Render renderiza todos os chunks carregados com gerenciamento dinâmico de atlas
+func (cm *ChunkManager) Render(grassMesh, dirtMesh, stoneMesh rl.Mesh, material rl.Material, playerPos rl.Vector3, visibleBlocks *VisibleBlocksTracker, atlas *DynamicAtlasManager) {
+	// OTIMIZAÇÃO: Gerenciar atlas apenas no início (não a cada frame)
+	// O atlas é construído uma vez e só muda quando novos chunks são carregados
 
-	// Renderizar apenas chunks próximos ao jogador para melhor performance
+	// Atualizar meshes pendentes (máximo 3 por frame)
+	const maxMeshUpdatesPerFrame = 3
+	cm.UpdatePendingMeshes(maxMeshUpdatesPerFrame, atlas)
+
+	// Renderizar apenas chunks próximos ao jogador
 	playerChunk := GetChunkCoordFromFloat(playerPos.X, playerPos.Y, playerPos.Z)
 
 	for _, chunk := range cm.Chunks {
-		// Calcular distância 3D do chunk ao jogador
 		dx := float32(chunk.Coord.X - playerChunk.X)
 		dy := float32(chunk.Coord.Y - playerChunk.Y)
 		dz := float32(chunk.Coord.Z - playerChunk.Z)
 		distSq := dx*dx + dy*dy + dz*dz
 
-		// Renderizar apenas chunks dentro da distância de renderização
 		if distSq <= float32(cm.RenderDistance*cm.RenderDistance) {
-			// Renderizar chunk (NÃO atualiza mesh aqui, já fizemos acima)
-			// Renderizar mesh combinada (1 draw call para TODO o chunk!)
 			if chunk.ChunkMesh.Uploaded {
 				rl.DrawMesh(chunk.ChunkMesh.Mesh, material, rl.MatrixIdentity())
 			}

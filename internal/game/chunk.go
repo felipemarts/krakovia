@@ -52,7 +52,7 @@ func (c *Chunk) SetBlock(x, y, z int32, block BlockType) {
 	c.NeedUpdateMeshes = true
 }
 
-// GenerateTerrain gera o terreno para este chunk
+// GenerateTerrain gera o terreno para este chunk (versão antiga - mantida para compatibilidade)
 func (c *Chunk) GenerateTerrain() {
 	// Posição mundial do chunk
 	worldX := c.Coord.X * ChunkSize
@@ -103,6 +103,29 @@ func (c *Chunk) GenerateTerrain() {
 	// Meshes serão atualizadas no primeiro render
 }
 
+// GenerateTerrainWithGenerator gera terreno usando TerrainGenerator
+func (c *Chunk) GenerateTerrainWithGenerator(tg *TerrainGenerator) {
+	worldX := c.Coord.X * ChunkSize
+	worldY := c.Coord.Y * ChunkHeight
+	worldZ := c.Coord.Z * ChunkSize
+
+	for x := int32(0); x < ChunkSize; x++ {
+		for y := int32(0); y < ChunkHeight; y++ {
+			for z := int32(0); z < ChunkSize; z++ {
+				wx := worldX + x
+				wy := worldY + y
+				wz := worldZ + z
+
+				blockType := tg.GetBlockTypeAt(wx, wy, wz)
+				c.Blocks[x][y][z] = blockType
+			}
+		}
+	}
+
+	c.IsGenerated = true
+	c.NeedUpdateMeshes = true
+}
+
 // IsBlockHiddenLocal verifica oclusão apenas dentro do chunk (otimização parcial)
 // NOTA: Não considera chunks vizinhos - use UpdateMeshesWithNeighbors para oclusão completa
 func (c *Chunk) IsBlockHiddenLocal(x, y, z int32) bool {
@@ -135,7 +158,7 @@ func (c *Chunk) IsBlockHiddenLocal(x, y, z int32) bool {
 }
 
 // UpdateMeshes atualiza a mesh sem considerar chunks vizinhos (fallback)
-func (c *Chunk) UpdateMeshes() {
+func (c *Chunk) UpdateMeshes(atlas *DynamicAtlasManager) {
 	// Usar a versão com vizinhos, mas retornar BlockAir para blocos fora do chunk
 	c.UpdateMeshesWithNeighbors(func(x, y, z int32) BlockType {
 		// Converter para coordenadas locais
@@ -149,11 +172,11 @@ func (c *Chunk) UpdateMeshes() {
 		}
 
 		return c.Blocks[localX][localY][localZ]
-	})
+	}, atlas)
 }
 
 // UpdateMeshesWithNeighbors atualiza meshes considerando chunks vizinhos
-func (c *Chunk) UpdateMeshesWithNeighbors(getBlockFunc func(x, y, z int32) BlockType) {
+func (c *Chunk) UpdateMeshesWithNeighbors(getBlockFunc func(x, y, z int32) BlockType, atlas *DynamicAtlasManager) {
 	// Limpar mesh anterior
 	c.ChunkMesh.Clear()
 
@@ -193,7 +216,7 @@ func (c *Chunk) UpdateMeshesWithNeighbors(getBlockFunc func(x, y, z int32) Block
 					// Se o vizinho é ar, a face está exposta
 					if neighborBlock == BlockAir {
 						// Adicionar quad para esta face
-						c.ChunkMesh.AddQuad(float32(wx), float32(wy), float32(wz), faceIndex, blockType)
+						c.ChunkMesh.AddQuad(float32(wx), float32(wy), float32(wz), faceIndex, blockType, atlas)
 					}
 				}
 			}
