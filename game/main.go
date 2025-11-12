@@ -5,7 +5,7 @@ import (
 
 	rl "github.com/gen2brain/raylib-go/raylib"
 
-	"krakovia/internal/game"
+	"krakovia/game"
 )
 
 func main() {
