@@ -1,0 +1,322 @@
+package game
+
+import (
+	"math"
+
+	rl "github.com/gen2brain/raylib-go/raylib"
+)
+
+// ChunkManager gerencia o carregamento e descarregamento de chunks
+type ChunkManager struct {
+	Chunks              map[int64]*Chunk
+	RenderDistance      int32 // Distância de renderização em chunks
+	UnloadDistance      int32 // Distância para descarregar chunks
+	LastPlayerChunk     ChunkCoord
+	UpdateCooldown      float32 // Tempo desde a última atualização de chunks
+	UpdateCooldownLimit float32 // Tempo mínimo entre atualizações (em segundos)
+	NewChunksLoaded     bool    // Flag para indicar que novos chunks foram carregados
+}
+
+// NewChunkManager cria um novo gerenciador de chunks
+func NewChunkManager(renderDistance int32) *ChunkManager {
+	return &ChunkManager{
+		Chunks:              make(map[int64]*Chunk),
+		RenderDistance:      renderDistance,
+		UnloadDistance:      renderDistance + 2, // Descarrega um pouco além da distância de renderização
+		UpdateCooldown:      0,
+		UpdateCooldownLimit: 0.05, // Atualizar chunks no máximo a cada 0.05 segundos (20 vezes por segundo)
+	}
+}
+
+// Update atualiza os chunks baseado na posição do jogador
+func (cm *ChunkManager) Update(playerPos rl.Vector3, dt float32, terrainGen *TerrainGenerator) {
+	// Incrementar cooldown
+	cm.UpdateCooldown += dt
+
+	// Obter chunk atual do jogador
+	currentChunk := GetChunkCoordFromFloat(playerPos.X, playerPos.Y, playerPos.Z)
+
+	// Se o cooldown passou, tentar carregar chunks gradualmente
+	if cm.UpdateCooldown >= cm.UpdateCooldownLimit {
+		cm.LoadChunksAroundPlayer(playerPos, terrainGen)
+
+		// Se o jogador mudou de chunk, descarregar chunks distantes
+		if currentChunk != cm.LastPlayerChunk {
+			cm.UnloadDistantChunks(playerPos)
+			cm.LastPlayerChunk = currentChunk
+		}
+
+		cm.UpdateCooldown = 0
+	}
+}
+
+// LoadChunksAroundPlayer carrega chunks ao redor do jogador
+func (cm *ChunkManager) LoadChunksAroundPlayer(playerPos rl.Vector3, terrainGen *TerrainGenerator) {
+	playerChunk := GetChunkCoordFromFloat(playerPos.X, playerPos.Y, playerPos.Z)
+
+	// Limitar o número de chunks carregados por frame para evitar lag
+	chunksLoadedThisFrame := 0
+	maxChunksPerFrame := 4 // Carregar no máximo 4 chunks por frame para carregamento mais rápido
+
+	// Carregar chunks em um raio 3D ao redor do jogador, priorizando os mais próximos
+	for distance := int32(0); distance <= cm.RenderDistance; distance++ {
+		for x := playerChunk.X - distance; x <= playerChunk.X+distance; x++ {
+			for y := playerChunk.Y - distance; y <= playerChunk.Y+distance; y++ {
+				for z := playerChunk.Z - distance; z <= playerChunk.Z+distance; z++ {
+					// Verificar se está dentro do raio esférico 3D
+					dx := float32(x - playerChunk.X)
+					dy := float32(y - playerChunk.Y)
+					dz := float32(z - playerChunk.Z)
+					dist := float32(math.Sqrt(float64(dx*dx + dy*dy + dz*dz)))
+
+					if dist <= float32(cm.RenderDistance) {
+						// Carregar chunks em todas as direções (X, Y, Z)
+						coord := ChunkCoord{X: x, Y: y, Z: z}
+						key := coord.Key()
+
+						// Se o chunk não existe, criar e gerar
+						if _, exists := cm.Chunks[key]; !exists {
+							chunk := NewChunk(x, y, z)
+
+							// Usar o novo gerador de terreno se fornecido
+							if terrainGen != nil {
+								chunk.GenerateTerrainWithGenerator(terrainGen)
+							} else {
+								chunk.GenerateTerrain()
+							}
+
+							cm.Chunks[key] = chunk
+
+							// Marcar que novos chunks foram carregados
+							cm.NewChunksLoaded = true
+
+							// Marcar chunks vizinhos para atualização de meshes
+							// pois agora eles têm um novo vizinho
+							cm.MarkNeighborsForUpdate(coord)
+
+							chunksLoadedThisFrame++
+							if chunksLoadedThisFrame >= maxChunksPerFrame {
+								return // Parar de carregar neste frame
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+// UnloadDistantChunks descarrega chunks distantes do jogador
+func (cm *ChunkManager) UnloadDistantChunks(playerPos rl.Vector3) {
+	playerChunk := GetChunkCoordFromFloat(playerPos.X, playerPos.Y, playerPos.Z)
+
+	// Lista de chunks para remover
+	toRemove := make([]int64, 0)
+
+	for key, chunk := range cm.Chunks {
+		// Calcular distância 3D do chunk ao jogador
+		dx := float32(chunk.Coord.X - playerChunk.X)
+		dy := float32(chunk.Coord.Y - playerChunk.Y)
+		dz := float32(chunk.Coord.Z - playerChunk.Z)
+		distance := float32(math.Sqrt(float64(dx*dx + dy*dy + dz*dz)))
+
+		// Se está além da distância de descarregamento, marcar para remoção
+		if distance > float32(cm.UnloadDistance) {
+			toRemove = append(toRemove, key)
+		}
+	}
+
+	// Remover chunks marcados
+	for _, key := range toRemove {
+		delete(cm.Chunks, key)
+	}
+}
+
+// GetBlock retorna o tipo de bloco nas coordenadas mundiais
+func (cm *ChunkManager) GetBlock(x, y, z int32) BlockType {
+	// Obter coordenadas do chunk
+	chunkCoord := GetChunkCoord(x, y, z)
+	key := chunkCoord.Key()
+
+	// Verificar se o chunk existe
+	chunk, exists := cm.Chunks[key]
+	if !exists {
+		return BlockAir
+	}
+
+	// Converter para coordenadas locais do chunk
+	// Usar módulo para garantir coordenadas locais corretas
+	localX := ((x % ChunkSize) + ChunkSize) % ChunkSize
+	localY := ((y % ChunkHeight) + ChunkHeight) % ChunkHeight
+	localZ := ((z % ChunkSize) + ChunkSize) % ChunkSize
+
+	return chunk.GetBlock(localX, localY, localZ)
+}
+
+// IsBlockHidden verifica se um bloco nas coordenadas mundiais está completamente cercado
+func (cm *ChunkManager) IsBlockHidden(x, y, z int32) bool {
+	// Verificar todas as 6 direções
+	directions := []struct{ dx, dy, dz int32 }{
+		{1, 0, 0},  // Direita
+		{-1, 0, 0}, // Esquerda
+		{0, 1, 0},  // Cima
+		{0, -1, 0}, // Baixo
+		{0, 0, 1},  // Frente
+		{0, 0, -1}, // Trás
+	}
+
+	for _, dir := range directions {
+		// Verificar bloco vizinho (pode estar em outro chunk)
+		neighborBlock := cm.GetBlock(x+dir.dx, y+dir.dy, z+dir.dz)
+
+		// Se o vizinho é ar, o bloco está exposto
+		if neighborBlock == BlockAir {
+			return false
+		}
+	}
+
+	// Todas as 6 faces estão bloqueadas
+	return true
+}
+
+// SetBlock define o tipo de bloco nas coordenadas mundiais
+func (cm *ChunkManager) SetBlock(x, y, z int32, block BlockType) {
+	// Obter coordenadas do chunk
+	chunkCoord := GetChunkCoord(x, y, z)
+	key := chunkCoord.Key()
+
+	// Verificar se o chunk existe
+	chunk, exists := cm.Chunks[key]
+	if !exists {
+		// Se não existe, criar o chunk
+		chunk = NewChunk(chunkCoord.X, chunkCoord.Y, chunkCoord.Z)
+		chunk.GenerateTerrain()
+		cm.Chunks[key] = chunk
+	}
+
+	// Converter para coordenadas locais do chunk
+	// Usar módulo para garantir coordenadas locais corretas
+	localX := ((x % ChunkSize) + ChunkSize) % ChunkSize
+	localY := ((y % ChunkHeight) + ChunkHeight) % ChunkHeight
+	localZ := ((z % ChunkSize) + ChunkSize) % ChunkSize
+
+	chunk.SetBlock(localX, localY, localZ, block)
+
+	// Se o bloco modificado está na borda do chunk, marcar chunks vizinhos para atualização
+	// Isso garante que faces que antes estavam ocultas agora apareçam
+	if localX == 0 {
+		// Borda X- -> marcar chunk à esquerda
+		cm.MarkChunkForUpdate(ChunkCoord{X: chunkCoord.X - 1, Y: chunkCoord.Y, Z: chunkCoord.Z})
+	}
+	if localX == ChunkSize-1 {
+		// Borda X+ -> marcar chunk à direita
+		cm.MarkChunkForUpdate(ChunkCoord{X: chunkCoord.X + 1, Y: chunkCoord.Y, Z: chunkCoord.Z})
+	}
+	if localY == 0 {
+		// Borda Y- -> marcar chunk abaixo
+		cm.MarkChunkForUpdate(ChunkCoord{X: chunkCoord.X, Y: chunkCoord.Y - 1, Z: chunkCoord.Z})
+	}
+	if localY == ChunkHeight-1 {
+		// Borda Y+ -> marcar chunk acima
+		cm.MarkChunkForUpdate(ChunkCoord{X: chunkCoord.X, Y: chunkCoord.Y + 1, Z: chunkCoord.Z})
+	}
+	if localZ == 0 {
+		// Borda Z- -> marcar chunk atrás
+		cm.MarkChunkForUpdate(ChunkCoord{X: chunkCoord.X, Y: chunkCoord.Y, Z: chunkCoord.Z - 1})
+	}
+	if localZ == ChunkSize-1 {
+		// Borda Z+ -> marcar chunk à frente
+		cm.MarkChunkForUpdate(ChunkCoord{X: chunkCoord.X, Y: chunkCoord.Y, Z: chunkCoord.Z + 1})
+	}
+}
+
+// MarkChunkForUpdate marca um chunk específico para atualização de mesh
+func (cm *ChunkManager) MarkChunkForUpdate(coord ChunkCoord) {
+	key := coord.Key()
+	if chunk, exists := cm.Chunks[key]; exists {
+		chunk.NeedUpdateMeshes = true
+	}
+}
+
+// UpdatePendingMeshes atualiza meshes pendentes com limite por frame
+func (cm *ChunkManager) UpdatePendingMeshes(maxMeshUpdatesPerFrame int, atlas *DynamicAtlasManager) int {
+	meshesUpdated := 0
+
+	// Atualizar meshes com limite para evitar FPS drops
+	for _, chunk := range cm.Chunks {
+		if chunk.NeedUpdateMeshes {
+			chunk.UpdateMeshesWithNeighbors(cm.GetBlock, atlas)
+			meshesUpdated++
+
+			// Limitar atualizações por frame
+			if meshesUpdated >= maxMeshUpdatesPerFrame {
+				break
+			}
+		}
+	}
+
+	return meshesUpdated
+}
+
+// Render renderiza todos os chunks carregados usando atlas por chunk
+func (cm *ChunkManager) Render(grassMesh, dirtMesh, stoneMesh rl.Mesh, material rl.Material, playerPos rl.Vector3, visibleBlocks *VisibleBlocksTracker, atlas *DynamicAtlasManager) {
+	// Atualizar meshes pendentes (máximo 3 por frame)
+	const maxMeshUpdatesPerFrame = 3
+	cm.UpdatePendingMeshes(maxMeshUpdatesPerFrame, atlas)
+
+	// Renderizar apenas chunks próximos ao jogador
+	playerChunk := GetChunkCoordFromFloat(playerPos.X, playerPos.Y, playerPos.Z)
+
+	for _, chunk := range cm.Chunks {
+		dx := float32(chunk.Coord.X - playerChunk.X)
+		dy := float32(chunk.Coord.Y - playerChunk.Y)
+		dz := float32(chunk.Coord.Z - playerChunk.Z)
+		distSq := dx*dx + dy*dy + dz*dz
+
+		if distSq <= float32(cm.RenderDistance*cm.RenderDistance) {
+			if chunk.ChunkMesh.Uploaded && chunk.ChunkAtlas.IsUploaded {
+				// Usar o material específico do chunk (com seu próprio atlas)
+				rl.DrawMesh(chunk.ChunkMesh.Mesh, chunk.ChunkAtlas.Material, rl.MatrixIdentity())
+			}
+		}
+	}
+}
+
+// GetTotalBlocks retorna o número total de faces RENDERIZADAS (para debug)
+func (cm *ChunkManager) GetTotalBlocks() int {
+	total := 0
+	for _, chunk := range cm.Chunks {
+		if chunk.ChunkMesh != nil && chunk.ChunkMesh.Uploaded {
+			// Cada quad (face) tem 2 triângulos
+			total += int(chunk.ChunkMesh.Mesh.TriangleCount / 2)
+		}
+	}
+	return total
+}
+
+// GetLoadedChunksCount retorna o número de chunks carregados
+func (cm *ChunkManager) GetLoadedChunksCount() int {
+	return len(cm.Chunks)
+}
+
+// MarkNeighborsForUpdate marca os chunks vizinhos para atualização de meshes
+// Deve ser chamado quando um novo chunk é criado para que os vizinhos
+// recalculem suas faces considerando o novo chunk
+func (cm *ChunkManager) MarkNeighborsForUpdate(coord ChunkCoord) {
+	// Verificar os 6 vizinhos diretos (faces adjacentes)
+	neighbors := []ChunkCoord{
+		{X: coord.X + 1, Y: coord.Y, Z: coord.Z}, // X+
+		{X: coord.X - 1, Y: coord.Y, Z: coord.Z}, // X-
+		{X: coord.X, Y: coord.Y + 1, Z: coord.Z}, // Y+
+		{X: coord.X, Y: coord.Y - 1, Z: coord.Z}, // Y-
+		{X: coord.X, Y: coord.Y, Z: coord.Z + 1}, // Z+
+		{X: coord.X, Y: coord.Y, Z: coord.Z - 1}, // Z-
+	}
+
+	for _, neighborCoord := range neighbors {
+		key := neighborCoord.Key()
+		if chunk, exists := cm.Chunks[key]; exists {
+			chunk.NeedUpdateMeshes = true
+		}
+	}
+}
