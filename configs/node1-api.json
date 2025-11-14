@@ -1,0 +1,39 @@
+{
+  "id": "node1",
+  "address": ":9001",
+  "db_path": "./data/node1",
+  "signaling_server": "ws://localhost:9000/ws",
+  "max_peers": 50,
+  "min_peers": 0,
+  "discovery_interval": 30,
+  "wallet": {
+    "private_key": "9bbb893d27a4b42c2713802ccf3f8d85c30043324f74ec84db41d7a21152f6e2",
+    "public_key": "44b6d05d558aa6bdab63f4df42684c0990715f97b03c0eb6cfb95eed30075bff59c07423b1ff7c7600b0585088031bf0f4ae8e6e19f589b1599bceeeb8503daa",
+    "address": "4b2aaf060ea4e382dbd121047539dc8312a6f301e72292214c804b461f0d35c9"
+  },
+  "genesis": {
+    "timestamp": 1609459200,
+    "recipient_addr": "4b2aaf060ea4e382dbd121047539dc8312a6f301e72292214c804b461f0d35c9",
+    "amount": 1000000000,
+    "initial_stake": 100000,
+    "hash": "0000000000000000000000000000000000000000000000000000000000000000",
+    "block_time": 5000,
+    "max_block_size": 1000,
+    "block_reward": 50,
+    "min_validator_stake": 1000
+  },
+  "checkpoint": {
+    "enabled": true,
+    "interval": 10,
+    "keep_in_memory": 20,
+    "keep_on_disk": 2,
+    "csv_delimiter": ",",
+    "compression": false
+  },
+  "api": {
+    "enabled": true,
+    "address": ":8080",
+    "username": "admin",
+    "password": "admin"
+  }
+}
