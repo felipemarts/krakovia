@@ -373,6 +373,7 @@ type Player struct {
 	ShowCollisionBody   bool
 	Model               *PlayerModel
 	ModelOpacity        float32 // Opacidade do modelo (0.0 = transparente, 1.0 = opaco)
+	ModelRotation       float32 // Rotação do modelo em radianos (direção que está olhando)
 	IsInteracting       bool    // Se está executando animação de interação
 	InteractFrames      int     // Frames restantes da animação de interação
 }
@@ -556,6 +557,9 @@ func (p *Player) Update(dt float32, world *World, input Input) {
 		}
 	}
 
+	// Atualizar rotação do modelo baseada na direção do movimento
+	p.updateModelRotation(dt)
+
 	// Atualizar animação baseada no estado do jogador
 	p.updateAnimationState()
 }
@@ -638,6 +642,42 @@ func (p *Player) updateAnimationState() {
 
 	// Definir a animação
 	p.Model.SetAnimationByName(animName)
+}
+
+// updateModelRotation atualiza a rotação do modelo baseada na direção do movimento
+func (p *Player) updateModelRotation(dt float32) {
+	// Verificar se há movimento horizontal
+	if p.Velocity.X == 0 && p.Velocity.Z == 0 {
+		return // Não rotacionar se não estiver se movendo
+	}
+
+	// Calcular o ângulo alvo baseado na direção do movimento
+	targetRotation := float32(math.Atan2(float64(p.Velocity.X), float64(p.Velocity.Z)))
+
+	// Calcular a diferença entre a rotação atual e o alvo
+	diff := targetRotation - p.ModelRotation
+
+	// Normalizar a diferença para estar entre -PI e PI
+	for diff > math.Pi {
+		diff -= 2 * math.Pi
+	}
+	for diff < -math.Pi {
+		diff += 2 * math.Pi
+	}
+
+	// Velocidade de rotação (quanto maior, mais rápido a transição)
+	rotationSpeed := float32(10.0)
+
+	// Interpolar suavemente para a rotação alvo
+	p.ModelRotation += diff * rotationSpeed * dt
+
+	// Normalizar a rotação atual para estar entre -PI e PI
+	for p.ModelRotation > math.Pi {
+		p.ModelRotation -= 2 * math.Pi
+	}
+	for p.ModelRotation < -math.Pi {
+		p.ModelRotation += 2 * math.Pi
+	}
 }
 
 func (p *Player) updateCamera(dt float32, world *World) {
@@ -803,14 +843,20 @@ func (p *Player) RenderPlayer() {
 		modelPos := rl.NewVector3(p.Position.X, p.Position.Y, p.Position.Z)
 
 		// Escala do modelo (ajustar conforme necessário)
-		scale := float32(1.0)
+		modelScale := rl.NewVector3(1.0, 1.0, 1.0)
+
+		// Eixo de rotação (Y = vertical)
+		rotationAxis := rl.NewVector3(0, 1, 0)
+
+		// Converter rotação de radianos para graus
+		rotationDegrees := p.ModelRotation * (180.0 / math.Pi)
 
 		// Criar cor com opacidade baseada na distância da câmera
 		alpha := uint8(p.ModelOpacity * 255.0)
 		tintColor := rl.Color{R: 255, G: 255, B: 255, A: alpha}
 
-		// Renderizar o modelo com animação e transparência
-		rl.DrawModel(p.Model.Model, modelPos, scale, tintColor)
+		// Renderizar o modelo com animação, rotação e transparência
+		rl.DrawModelEx(p.Model.Model, modelPos, rotationAxis, rotationDegrees, modelScale, tintColor)
 	}
 
 	// Renderizar corpo de colisão se ativado

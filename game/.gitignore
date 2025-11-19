@@ -43,6 +43,8 @@ tests/test-data/
 cmd/node/node
 cmd/signaling/signaling
 build/
+krakovia
+
 
 # Configurações locais (não commitar configs com chaves privadas)
 *.local.json
@@ -51,3 +53,4 @@ secrets/
 # Go workspace
 go.work
 go.work.sum
+
