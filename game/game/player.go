@@ -2,6 +2,7 @@ package game
 
 import (
 	"math"
+	"unsafe"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
 )
@@ -27,6 +28,13 @@ type PlayerModel struct {
 	CurrentFrame     int
 	IsLoaded         bool
 	AnimationNames   map[string]int // Mapa de nome -> índice da animação
+
+	// Blending de animações
+	PrevAnimIndex   int     // Animação anterior (para blend)
+	PrevFrame       int     // Frame da animação anterior
+	BlendFactor     float32 // Fator de blend (0 = prev, 1 = current)
+	BlendSpeed      float32 // Velocidade de transição
+	IsBlending      bool    // Se está em transição
 }
 
 // LoadPlayerModel carrega um modelo GLB com animações
@@ -35,6 +43,8 @@ func LoadPlayerModel(modelPath string) *PlayerModel {
 	pm := &PlayerModel{
 		IsLoaded:       false,
 		AnimationNames: make(map[string]int),
+		BlendSpeed:     4.0, // Velocidade de transição (maior = mais rápido, ~250ms)
+		BlendFactor:    1.0, // Começa sem blend
 	}
 
 	// Carregar modelo GLB
@@ -123,7 +133,7 @@ func (pm *PlayerModel) Unload() {
 	pm.IsLoaded = false
 }
 
-// UpdateAnimation atualiza a animação do modelo
+// UpdateAnimation atualiza a animação do modelo com blending suave
 func (pm *PlayerModel) UpdateAnimation() {
 	if !pm.IsLoaded || pm.AnimationCount == 0 {
 		return
@@ -132,22 +142,138 @@ func (pm *PlayerModel) UpdateAnimation() {
 	// Obter animação atual
 	anim := pm.Animations[pm.CurrentAnimIndex]
 
-	// Avançar frame
+	// Avançar frame da animação atual
 	pm.CurrentFrame = (pm.CurrentFrame + 1) % int(anim.FrameCount)
 
-	// Atualizar modelo com frame atual
-	rl.UpdateModelAnimation(pm.Model, anim, int32(pm.CurrentFrame))
+	// Atualizar blend factor
+	if pm.IsBlending {
+		// Usar delta time fixo de 1/60 para animação consistente
+		pm.BlendFactor += pm.BlendSpeed * (1.0 / 60.0)
+		if pm.BlendFactor >= 1.0 {
+			pm.BlendFactor = 1.0
+			pm.IsBlending = false
+		}
+	}
+
+	// Aplicar animação com blending
+	if pm.IsBlending && pm.PrevAnimIndex >= 0 && pm.PrevAnimIndex < pm.AnimationCount {
+		// Atualizar frame da animação anterior também
+		prevAnim := pm.Animations[pm.PrevAnimIndex]
+		pm.PrevFrame = (pm.PrevFrame + 1) % int(prevAnim.FrameCount)
+
+		// Fazer blend entre as duas animações
+		pm.updateModelAnimationBlend(prevAnim, int32(pm.PrevFrame), anim, int32(pm.CurrentFrame), pm.BlendFactor)
+	} else {
+		// Sem blend, usar animação direta
+		rl.UpdateModelAnimation(pm.Model, anim, int32(pm.CurrentFrame))
+	}
 }
 
-// SetAnimation define qual animação deve ser reproduzida
+// updateModelAnimationBlend faz interpolação entre duas animações
+func (pm *PlayerModel) updateModelAnimationBlend(animA rl.ModelAnimation, frameA int32, animB rl.ModelAnimation, frameB int32, blend float32) {
+	// Aplicar smoothstep para transição mais suave
+	t := blend * blend * (3 - 2*blend)
+
+	// Obter número de bones
+	boneCount := int(animA.BoneCount)
+	if boneCount == 0 || animA.BoneCount != animB.BoneCount {
+		if t < 0.5 {
+			rl.UpdateModelAnimation(pm.Model, animA, frameA)
+		} else {
+			rl.UpdateModelAnimation(pm.Model, animB, frameB)
+		}
+		return
+	}
+
+	// Acessar FramePoses usando unsafe
+	framePosesA := unsafe.Slice(animA.FramePoses, animA.FrameCount)
+	framePosesB := unsafe.Slice(animB.FramePoses, animB.FrameCount)
+
+	// Obter os bones do frame atual de cada animação
+	bonesA := unsafe.Slice(framePosesA[frameA], boneCount)
+	bonesB := unsafe.Slice(framePosesB[frameB], boneCount)
+
+	// Salvar valores originais de B antes de modificar
+	originalB := make([]rl.Transform, boneCount)
+	for i := 0; i < boneCount; i++ {
+		originalB[i] = bonesB[i]
+	}
+
+	// Interpolar os bones
+	for i := 0; i < boneCount; i++ {
+		bonesB[i].Translation = rl.Vector3{
+			X: bonesA[i].Translation.X*(1-t) + originalB[i].Translation.X*t,
+			Y: bonesA[i].Translation.Y*(1-t) + originalB[i].Translation.Y*t,
+			Z: bonesA[i].Translation.Z*(1-t) + originalB[i].Translation.Z*t,
+		}
+
+		bonesB[i].Rotation = lerpQuaternion(bonesA[i].Rotation, originalB[i].Rotation, t)
+
+		bonesB[i].Scale = rl.Vector3{
+			X: bonesA[i].Scale.X*(1-t) + originalB[i].Scale.X*t,
+			Y: bonesA[i].Scale.Y*(1-t) + originalB[i].Scale.Y*t,
+			Z: bonesA[i].Scale.Z*(1-t) + originalB[i].Scale.Z*t,
+		}
+	}
+
+	// Aplicar a animação B com os bones interpolados
+	rl.UpdateModelAnimation(pm.Model, animB, frameB)
+
+	// Restaurar valores originais de B
+	for i := 0; i < boneCount; i++ {
+		bonesB[i] = originalB[i]
+	}
+}
+
+// lerpQuaternion faz interpolação linear normalizada entre quaternions
+func lerpQuaternion(q1, q2 rl.Quaternion, t float32) rl.Quaternion {
+	// Verificar se os quaternions estão no mesmo hemisfério
+	dot := q1.X*q2.X + q1.Y*q2.Y + q1.Z*q2.Z + q1.W*q2.W
+	if dot < 0 {
+		q2.X = -q2.X
+		q2.Y = -q2.Y
+		q2.Z = -q2.Z
+		q2.W = -q2.W
+	}
+
+	// Interpolar linearmente
+	result := rl.Quaternion{
+		X: q1.X*(1-t) + q2.X*t,
+		Y: q1.Y*(1-t) + q2.Y*t,
+		Z: q1.Z*(1-t) + q2.Z*t,
+		W: q1.W*(1-t) + q2.W*t,
+	}
+
+	// Normalizar
+	length := float32(math.Sqrt(float64(result.X*result.X + result.Y*result.Y + result.Z*result.Z + result.W*result.W)))
+	if length > 0 {
+		result.X /= length
+		result.Y /= length
+		result.Z /= length
+		result.W /= length
+	}
+
+	return result
+}
+
+// SetAnimation define qual animação deve ser reproduzida com transição suave
 func (pm *PlayerModel) SetAnimation(index int) {
 	if !pm.IsLoaded || index < 0 || index >= pm.AnimationCount {
 		return
 	}
 
 	if pm.CurrentAnimIndex != index {
+		// Salvar animação anterior para blend
+		pm.PrevAnimIndex = pm.CurrentAnimIndex
+		pm.PrevFrame = pm.CurrentFrame
+
+		// Mudar para nova animação
 		pm.CurrentAnimIndex = index
 		pm.CurrentFrame = 0
+
+		// Iniciar transição suave
+		pm.BlendFactor = 0.0
+		pm.IsBlending = true
 	}
 }
 
