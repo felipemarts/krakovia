@@ -561,14 +561,30 @@ func (p *Player) Update(dt float32, world *World, input Input) {
 }
 
 // startInteractAnimation inicia a animação de interação
+// A animação de interação só é executada se o jogador estiver em idle
 func (p *Player) startInteractAnimation() {
 	if p.Model == nil || !p.Model.IsLoaded {
 		return
 	}
 
+	// Verificar se o jogador está em estado de idle
+	// A animação de interação só sobrepõe a animação de idle
+	isMoving := p.Velocity.X != 0 || p.Velocity.Z != 0
+	if p.FlyMode || !p.IsOnGround || isMoving {
+		// Não iniciar animação de interação se estiver voando, pulando ou andando
+		return
+	}
+
+	// Obter a duração da animação Interact
+	if index, ok := p.Model.AnimationNames["Interact"]; ok {
+		anim := p.Model.Animations[index]
+		// Usar a duração real da animação
+		p.InteractFrames = int(anim.FrameCount)
+	} else {
+		p.InteractFrames = 30 // Fallback
+	}
+
 	p.IsInteracting = true
-	// Duração da animação em frames (ajustar conforme necessário)
-	p.InteractFrames = 30
 	p.Model.SetAnimationByName("Interact")
 }
 
@@ -578,19 +594,30 @@ func (p *Player) updateAnimationState() {
 		return
 	}
 
-	// Se está interagindo, decrementar frames e manter a animação
-	if p.IsInteracting {
-		p.InteractFrames--
-		if p.InteractFrames <= 0 {
-			p.IsInteracting = false
-		} else {
-			// Manter animação de interação
-			return
-		}
-	}
-
 	// Verificar se está se movendo horizontalmente
 	isMoving := p.Velocity.X != 0 || p.Velocity.Z != 0
+
+	// Se está interagindo, verificar se deve continuar ou cancelar
+	if p.IsInteracting {
+		// Cancelar animação de interação se o jogador sair do estado de idle
+		// (começou a andar, voar ou pular)
+		if p.FlyMode || !p.IsOnGround || isMoving {
+			p.IsInteracting = false
+			// Continuar para selecionar a animação apropriada
+		} else {
+			// Só decrementar frames se não estiver em transição de blend
+			// para garantir que a animação completa seja exibida
+			if !p.Model.IsBlending {
+				p.InteractFrames--
+			}
+			if p.InteractFrames <= 0 {
+				p.IsInteracting = false
+			} else {
+				// Manter animação de interação
+				return
+			}
+		}
+	}
 
 	// Determinar a animação correta baseada no estado
 	var animName string
