@@ -359,6 +359,7 @@ type Player struct {
 	Yaw                 float32
 	Pitch               float32
 	IsOnGround          bool
+	GroundedFrames      int // Contador de frames no chão para evitar oscilação
 	LookingAtBlock      bool
 	TargetBlock         rl.Vector3
 	PlaceBlock          rl.Vector3
@@ -831,14 +832,9 @@ func (p *Player) ApplyMovement(dt float32, world *World) {
 
 		if !p.CheckCollision(newPosY, world) {
 			p.Position.Y = newPosY.Y
-			// SÃ³ marcar como nÃ£o no chÃ£o se estamos realmente nos movendo para cima ou caindo
-			if p.Velocity.Y != 0 {
-				p.IsOnGround = false
-			}
 		} else {
 			if p.Velocity.Y < 0 {
-				// Colidiu com o chÃ£o
-				p.IsOnGround = true
+				// Colidiu com o chão
 				p.Velocity.Y = 0
 			} else if p.Velocity.Y > 0 {
 				// Colidiu com o teto
@@ -847,10 +843,24 @@ func (p *Player) ApplyMovement(dt float32, world *World) {
 		}
 	}
 
-	// VerificaÃ§Ã£o extra: check colisÃ£o abaixo para garantir IsOnGround correto
+	// Verificação de chão: sempre checar se há bloco abaixo
 	checkBelowPos := p.Position
-	checkBelowPos.Y -= 0.01 // Verificar ligeiramente abaixo
-	if p.CheckCollision(checkBelowPos, world) {
+	checkBelowPos.Y -= 0.1 // Verificar ligeiramente abaixo
+
+	wasOnGround := p.IsOnGround
+	p.IsOnGround = p.CheckCollision(checkBelowPos, world)
+
+	// Se acabou de pousar, resetar o buffer
+	if p.IsOnGround && !wasOnGround {
+		p.GroundedFrames = 10 // Buffer de frames após pousar
+	}
+
+	// Se está no chão, manter o buffer
+	if p.IsOnGround {
+		p.GroundedFrames = 10
+	} else if p.GroundedFrames > 0 {
+		// Coyote time: ainda considera no chão por alguns frames
+		p.GroundedFrames--
 		p.IsOnGround = true
 	}
 }
