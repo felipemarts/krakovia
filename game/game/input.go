@@ -17,6 +17,8 @@ type Input interface {
 	IsFlyDownPressed() bool
 	IsCameraTogglePressed() bool
 	IsCollisionTogglePressed() bool
+	IsPrevAnimationPressed() bool
+	IsNextAnimationPressed() bool
 	GetMouseDelta() rl.Vector2
 }
 
@@ -75,6 +77,14 @@ func (r *RaylibInput) IsCollisionTogglePressed() bool {
 	return rl.IsKeyPressed(rl.KeyK)
 }
 
+func (r *RaylibInput) IsPrevAnimationPressed() bool {
+	return rl.IsKeyPressed(rl.KeyLeft)
+}
+
+func (r *RaylibInput) IsNextAnimationPressed() bool {
+	return rl.IsKeyPressed(rl.KeyRight)
+}
+
 // SimulatedInput implementa Input para testes
 type SimulatedInput struct {
 	Forward         bool
@@ -89,6 +99,8 @@ type SimulatedInput struct {
 	FlyDown         bool
 	CameraToggle    bool
 	CollisionToggle bool
+	PrevAnimation   bool
+	NextAnimation   bool
 	MouseDelta      rl.Vector2
 }
 
@@ -155,5 +167,17 @@ func (s *SimulatedInput) IsCameraTogglePressed() bool {
 func (s *SimulatedInput) IsCollisionTogglePressed() bool {
 	result := s.CollisionToggle
 	s.CollisionToggle = false
+	return result
+}
+
+func (s *SimulatedInput) IsPrevAnimationPressed() bool {
+	result := s.PrevAnimation
+	s.PrevAnimation = false
+	return result
+}
+
+func (s *SimulatedInput) IsNextAnimationPressed() bool {
+	result := s.NextAnimation
+	s.NextAnimation = false
 	return result
 }

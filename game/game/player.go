@@ -26,13 +26,15 @@ type PlayerModel struct {
 	CurrentAnimIndex int
 	CurrentFrame     int
 	IsLoaded         bool
+	AnimationNames   map[string]int // Mapa de nome -> índice da animação
 }
 
 // LoadPlayerModel carrega um modelo GLB com animações
 // Baseado no exemplo raylib de importação GLTF
 func LoadPlayerModel(modelPath string) *PlayerModel {
 	pm := &PlayerModel{
-		IsLoaded: false,
+		IsLoaded:       false,
+		AnimationNames: make(map[string]int),
 	}
 
 	// Carregar modelo GLB
@@ -45,12 +47,64 @@ func LoadPlayerModel(modelPath string) *PlayerModel {
 	pm.Animations = rl.LoadModelAnimations(modelPath)
 	pm.AnimationCount = len(pm.Animations)
 
+	// Criar mapa de nomes das animações
+	for i := 0; i < pm.AnimationCount; i++ {
+		anim := pm.Animations[i]
+		name := ""
+		for _, c := range anim.Name {
+			if c == 0 {
+				break
+			}
+			name += string(c)
+		}
+		if name != "" {
+			pm.AnimationNames[name] = i
+		}
+	}
+
 	// Inicializar com primeira animação se disponível
 	pm.CurrentAnimIndex = 0
 	pm.CurrentFrame = 0
 	pm.IsLoaded = true
 
+	// Log de todas as animações carregadas
+	//pm.LogAllAnimations()
+
 	return pm
+}
+
+// LogAllAnimations imprime informações sobre todas as animações do modelo
+func (pm *PlayerModel) LogAllAnimations() {
+	if !pm.IsLoaded || pm.AnimationCount == 0 {
+		println("No animations loaded")
+		return
+	}
+
+	println("=== Animações do Modelo ===")
+	println("Total:", pm.AnimationCount, "animações")
+	println("")
+
+	for i := 0; i < pm.AnimationCount; i++ {
+		anim := pm.Animations[i]
+
+		// Converter nome para string
+		name := ""
+		for _, c := range anim.Name {
+			if c == 0 {
+				break
+			}
+			name += string(c)
+		}
+		if name == "" {
+			name = "Unnamed"
+		}
+
+		println("Animação", i+1, ":", name)
+		println("  - Frames:", anim.FrameCount)
+		println("  - Bones:", anim.BoneCount)
+		println("")
+	}
+	println("===========================")
 }
 
 // UnloadPlayerModel descarrega o modelo e suas animações
@@ -91,8 +145,84 @@ func (pm *PlayerModel) SetAnimation(index int) {
 		return
 	}
 
-	pm.CurrentAnimIndex = index
+	if pm.CurrentAnimIndex != index {
+		pm.CurrentAnimIndex = index
+		pm.CurrentFrame = 0
+	}
+}
+
+// SetAnimationByName define a animação pelo nome
+func (pm *PlayerModel) SetAnimationByName(name string) {
+	if !pm.IsLoaded {
+		return
+	}
+
+	if index, ok := pm.AnimationNames[name]; ok {
+		pm.SetAnimation(index)
+	}
+}
+
+// NextAnimation avança para a próxima animação
+func (pm *PlayerModel) NextAnimation() {
+	if !pm.IsLoaded || pm.AnimationCount == 0 {
+		return
+	}
+
+	pm.CurrentAnimIndex = (pm.CurrentAnimIndex + 1) % pm.AnimationCount
 	pm.CurrentFrame = 0
+}
+
+// PrevAnimation volta para a animação anterior
+func (pm *PlayerModel) PrevAnimation() {
+	if !pm.IsLoaded || pm.AnimationCount == 0 {
+		return
+	}
+
+	pm.CurrentAnimIndex--
+	if pm.CurrentAnimIndex < 0 {
+		pm.CurrentAnimIndex = pm.AnimationCount - 1
+	}
+	pm.CurrentFrame = 0
+}
+
+// GetCurrentAnimationName retorna o nome da animação atual
+func (pm *PlayerModel) GetCurrentAnimationName() string {
+	if !pm.IsLoaded || pm.AnimationCount == 0 {
+		return "No animations"
+	}
+
+	anim := pm.Animations[pm.CurrentAnimIndex]
+	// Converter o array de caracteres para string
+	name := ""
+	for _, c := range anim.Name {
+		if c == 0 {
+			break
+		}
+		name += string(c)
+	}
+
+	if name == "" {
+		return "Unnamed"
+	}
+	return name
+}
+
+// GetAnimationInfo retorna informações sobre a animação atual
+func (pm *PlayerModel) GetAnimationInfo() string {
+	if !pm.IsLoaded || pm.AnimationCount == 0 {
+		return "No model loaded"
+	}
+
+	name := pm.GetCurrentAnimationName()
+	return name
+}
+
+// GetAnimationDisplayInfo retorna informações formatadas para exibição na UI
+func (p *Player) GetAnimationDisplayInfo() (string, int, int) {
+	if p.Model == nil || !p.Model.IsLoaded || p.Model.AnimationCount == 0 {
+		return "No animations", 0, 0
+	}
+	return p.Model.GetCurrentAnimationName(), p.Model.CurrentAnimIndex + 1, p.Model.AnimationCount
 }
 
 // Player representa o jogador
@@ -116,6 +246,8 @@ type Player struct {
 	ShowCollisionBody   bool
 	Model               *PlayerModel
 	ModelOpacity        float32 // Opacidade do modelo (0.0 = transparente, 1.0 = opaco)
+	IsInteracting       bool    // Se está executando animação de interação
+	InteractFrames      int     // Frames restantes da animação de interação
 }
 
 func NewPlayer(position rl.Vector3) *Player {
@@ -151,6 +283,16 @@ func (p *Player) Update(dt float32, world *World, input Input) {
 	// Atualizar animação do modelo 3D
 	if p.Model != nil && p.Model.IsLoaded {
 		p.Model.UpdateAnimation()
+	}
+
+	// Alternar animações manualmente com setas esquerda/direita (para debug)
+	if p.Model != nil && p.Model.IsLoaded {
+		if input.IsPrevAnimationPressed() {
+			p.Model.PrevAnimation()
+		}
+		if input.IsNextAnimationPressed() {
+			p.Model.NextAnimation()
+		}
 	}
 
 	// Toggle fly mode com tecla P
@@ -267,6 +409,8 @@ func (p *Player) Update(dt float32, world *World, input Input) {
 	if input.IsLeftClickPressed() && p.LookingAtBlock {
 		// Remover bloco
 		world.SetBlock(int32(p.TargetBlock.X), int32(p.TargetBlock.Y), int32(p.TargetBlock.Z), BlockAir)
+		// Iniciar animação de interação
+		p.startInteractAnimation()
 	}
 
 	if input.IsRightClickPressed() && p.LookingAtBlock {
@@ -280,8 +424,66 @@ func (p *Player) Update(dt float32, world *World, input Input) {
 		// Verificar se o bloco que vai ser colocado não colide com o jogador
 		if !p.wouldBlockCollideWithPlayer(placePos) {
 			world.SetBlock(int32(p.PlaceBlock.X), int32(p.PlaceBlock.Y), int32(p.PlaceBlock.Z), BlockStone)
+			// Iniciar animação de interação
+			p.startInteractAnimation()
 		}
 	}
+
+	// Atualizar animação baseada no estado do jogador
+	p.updateAnimationState()
+}
+
+// startInteractAnimation inicia a animação de interação
+func (p *Player) startInteractAnimation() {
+	if p.Model == nil || !p.Model.IsLoaded {
+		return
+	}
+
+	p.IsInteracting = true
+	// Duração da animação em frames (ajustar conforme necessário)
+	p.InteractFrames = 30
+	p.Model.SetAnimationByName("Interact")
+}
+
+// updateAnimationState define a animação baseada no estado atual do jogador
+func (p *Player) updateAnimationState() {
+	if p.Model == nil || !p.Model.IsLoaded {
+		return
+	}
+
+	// Se está interagindo, decrementar frames e manter a animação
+	if p.IsInteracting {
+		p.InteractFrames--
+		if p.InteractFrames <= 0 {
+			p.IsInteracting = false
+		} else {
+			// Manter animação de interação
+			return
+		}
+	}
+
+	// Verificar se está se movendo horizontalmente
+	isMoving := p.Velocity.X != 0 || p.Velocity.Z != 0
+
+	// Determinar a animação correta baseada no estado
+	var animName string
+
+	if p.FlyMode {
+		// Modo voo: sempre Swim_Idle_Loop
+		animName = "Swim_Idle_Loop"
+	} else if !p.IsOnGround {
+		// Pulando/caindo: Jump_Loop
+		animName = "Jump_Loop"
+	} else if isMoving {
+		// Andando: Jog_Fwd_Loop
+		animName = "Jog_Fwd_Loop"
+	} else {
+		// Parado: Idle_Loop
+		animName = "Idle_Loop"
+	}
+
+	// Definir a animação
+	p.Model.SetAnimationByName(animName)
 }
 
 func (p *Player) updateCamera(dt float32, world *World) {

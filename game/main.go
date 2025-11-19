@@ -107,7 +107,7 @@ func main() {
 func renderUI(player *game.Player, world *game.World) {
 	rl.DrawText("WASD - Mover | Espaço - Pular | Mouse - Olhar | P - Fly Mode | K - Collision Body", 10, 10, 20, rl.Black)
 	rl.DrawText("Click Esquerdo - Remover | Click Direito - Colocar | V - Alternar Câmera", 10, 35, 20, rl.Black)
-	rl.DrawText("F1 - Atlas Stats | F2 - Save Atlas | F3 - Visible Blocks", 10, 60, 20, rl.DarkGray)
+	rl.DrawText("F1 - Atlas Stats | F2 - Save Atlas | F3 - Visible Blocks | Setas - Animações", 10, 60, 20, rl.DarkGray)
 
 	yOffset := int32(85)
 
@@ -128,6 +128,14 @@ func renderUI(player *game.Player, world *game.World) {
 	totalBlocks := world.GetTotalBlocks()
 	chunksLoaded := world.GetLoadedChunksCount()
 	rl.DrawText(fmt.Sprintf("Blocos: %d | Chunks: %d", totalBlocks, chunksLoaded), 10, yOffset, 20, rl.Black)
+	yOffset += 25
+
+	// Mostrar animação atual do modelo
+	animName, animIndex, animCount := player.GetAnimationDisplayInfo()
+	if animCount > 0 {
+		rl.DrawText(fmt.Sprintf("Animação: %s (%d/%d)", animName, animIndex, animCount), 10, yOffset, 20, rl.Purple)
+	}
+
 	rl.DrawText(fmt.Sprintf("FPS: %d", rl.GetFPS()), 10, game.ScreenHeight-30, 20, rl.Green)
 
 	// Crosshair
