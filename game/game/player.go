@@ -374,6 +374,8 @@ type Player struct {
 	Model               *PlayerModel
 	ModelOpacity        float32 // Opacidade do modelo (0.0 = transparente, 1.0 = opaco)
 	ModelRotation       float32 // Rotação do modelo em radianos (direção que está olhando)
+	ModelTiltX          float32 // Inclinação do modelo no eixo X (frente/trás) em radianos
+	ModelTiltZ          float32 // Inclinação do modelo no eixo Z (esquerda/direita) em radianos
 	IsInteracting       bool    // Se está executando animação de interação
 	InteractFrames      int     // Frames restantes da animação de interação
 }
@@ -495,7 +497,7 @@ func (p *Player) Update(dt float32, world *World, input Input) {
 	p.Velocity.X = moveInput.X
 	p.Velocity.Z = moveInput.Z
 
-	// LÃ³gica de fÃ­sica diferente baseado no modo fly
+	// Lógica de física diferente baseado no modo fly
 	if p.FlyMode {
 		// No modo fly: sem gravidade, controle vertical com Shift/Ctrl
 		flySpeed := float32(15.0)
@@ -508,10 +510,8 @@ func (p *Player) Update(dt float32, world *World, input Input) {
 			p.Velocity.Y = -flySpeed
 		}
 
-		// No modo fly, aplicar movimento sem colisÃµes
-		p.Position.X += p.Velocity.X * dt
-		p.Position.Y += p.Velocity.Y * dt
-		p.Position.Z += p.Velocity.Z * dt
+		// No modo fly, aplicar movimento COM colisões
+		p.ApplyMovement(dt, world)
 	} else {
 		// Modo normal: gravidade e colisÃµes ativas
 		gravity := float32(-20.0)
@@ -559,6 +559,9 @@ func (p *Player) Update(dt float32, world *World, input Input) {
 
 	// Atualizar rotação do modelo baseada na direção do movimento
 	p.updateModelRotation(dt)
+
+	// Atualizar inclinação do modelo durante o voo
+	p.updateModelTilt(dt)
 
 	// Atualizar animação baseada no estado do jogador
 	p.updateAnimationState()
@@ -678,6 +681,50 @@ func (p *Player) updateModelRotation(dt float32) {
 	for p.ModelRotation < -math.Pi {
 		p.ModelRotation += 2 * math.Pi
 	}
+}
+
+// updateModelTilt atualiza a inclinação do modelo durante o voo
+func (p *Player) updateModelTilt(dt float32) {
+	// Velocidade de transição da inclinação
+	tiltSpeed := float32(8.0)
+	// Ângulo máximo de inclinação (em radianos, ~25 graus)
+	maxTilt := float32(0.436)
+
+	var targetTiltX, targetTiltZ float32
+
+	if p.FlyMode {
+		// Calcular inclinação baseada na velocidade horizontal relativa à direção do modelo
+		// Precisamos transformar a velocidade do mundo para o espaço local do modelo
+
+		// Velocidade horizontal
+		velX := p.Velocity.X
+		velZ := p.Velocity.Z
+
+		// Rotacionar a velocidade para o espaço local do modelo
+		cosRot := float32(math.Cos(float64(p.ModelRotation)))
+		sinRot := float32(math.Sin(float64(p.ModelRotation)))
+
+		// Velocidade local (frente/trás e esquerda/direita)
+		localForward := velX*sinRot + velZ*cosRot  // Velocidade na direção frontal
+		localRight := velX*cosRot - velZ*sinRot    // Velocidade lateral
+
+		// Normalizar para o range de inclinação
+		speed := float32(10.0) // Velocidade de referência para inclinação máxima
+
+		// Inclinação para frente quando se move para frente
+		targetTiltX = clamp(localForward/speed, -1, 1) * maxTilt
+
+		// Inclinação lateral quando se move para os lados
+		targetTiltZ = -clamp(localRight/speed, -1, 1) * maxTilt
+	} else {
+		// Não está voando - voltar para posição neutra
+		targetTiltX = 0
+		targetTiltZ = 0
+	}
+
+	// Interpolar suavemente para a inclinação alvo
+	p.ModelTiltX += (targetTiltX - p.ModelTiltX) * tiltSpeed * dt
+	p.ModelTiltZ += (targetTiltZ - p.ModelTiltZ) * tiltSpeed * dt
 }
 
 func (p *Player) updateCamera(dt float32, world *World) {
@@ -836,27 +883,54 @@ func clamp01(value float32) float32 {
 	return value
 }
 
+func clamp(value, min, max float32) float32 {
+	if value < min {
+		return min
+	}
+	if value > max {
+		return max
+	}
+	return value
+}
+
 func (p *Player) RenderPlayer() {
 	// Renderizar modelo 3D se disponível e visível
 	if p.Model != nil && p.Model.IsLoaded && p.ModelOpacity > 0.0 {
 		// Posição do modelo (centralizado na posição do player)
 		modelPos := rl.NewVector3(p.Position.X, p.Position.Y, p.Position.Z)
 
-		// Escala do modelo (ajustar conforme necessário)
+		// Escala do modelo
 		modelScale := rl.NewVector3(1.0, 1.0, 1.0)
-
-		// Eixo de rotação (Y = vertical)
-		rotationAxis := rl.NewVector3(0, 1, 0)
-
-		// Converter rotação de radianos para graus
-		rotationDegrees := p.ModelRotation * (180.0 / math.Pi)
 
 		// Criar cor com opacidade baseada na distância da câmera
 		alpha := uint8(p.ModelOpacity * 255.0)
 		tintColor := rl.Color{R: 255, G: 255, B: 255, A: alpha}
 
-		// Renderizar o modelo com animação, rotação e transparência
-		rl.DrawModelEx(p.Model.Model, modelPos, rotationAxis, rotationDegrees, modelScale, tintColor)
+		// Criar quaternions para cada rotação
+		// Rotação Y (direção do movimento)
+		qY := rl.QuaternionFromAxisAngle(rl.NewVector3(0, 1, 0), p.ModelRotation)
+
+		// Rotação X (inclinação frente/trás) - no espaço local do modelo
+		qX := rl.QuaternionFromAxisAngle(rl.NewVector3(1, 0, 0), p.ModelTiltX)
+
+		// Rotação Z (inclinação lateral) - no espaço local do modelo
+		qZ := rl.QuaternionFromAxisAngle(rl.NewVector3(0, 0, 1), p.ModelTiltZ)
+
+		// Combinar rotações: primeiro Y (direção), depois X e Z (inclinação)
+		// A ordem é importante: primeiro aplicamos a rotação de direção,
+		// depois as inclinações no espaço local
+		qFinal := rl.QuaternionMultiply(qY, rl.QuaternionMultiply(qX, qZ))
+
+		// Converter quaternion para eixo-ângulo para DrawModelEx
+		var axis rl.Vector3
+		var angle float32
+		rl.QuaternionToAxisAngle(qFinal, &axis, &angle)
+
+		// Converter ângulo de radianos para graus
+		angleDegrees := angle * (180.0 / math.Pi)
+
+		// Renderizar o modelo com animação, rotação composta e transparência
+		rl.DrawModelEx(p.Model.Model, modelPos, axis, angleDegrees, modelScale, tintColor)
 	}
 
 	// Renderizar corpo de colisão se ativado
