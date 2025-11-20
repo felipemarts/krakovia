@@ -110,9 +110,9 @@ func TestPlayerMovement_Collision(t *testing.T) {
 	simulateFrames(player, world, input, 60)
 
 	// Colocar uma parede (4 blocos de distância para dar espaço)
-	world.SetBlock(16, 11, 20, BlockGrass)
-	world.SetBlock(16, 12, 20, BlockGrass)
-	world.SetBlock(16, 13, 20, BlockGrass)
+	world.SetBlock(16, 11, 20, BlockType(DefaultBlockID))
+	world.SetBlock(16, 12, 20, BlockType(DefaultBlockID))
+	world.SetBlock(16, 13, 20, BlockType(DefaultBlockID))
 
 	initialZ := player.Position.Z
 
@@ -209,7 +209,7 @@ func TestPlayerJump_HeadCollision(t *testing.T) {
 	simulateFrames(player, world, input, 60)
 
 	// Colocar um bloco acima do player (baixo teto)
-	world.SetBlock(16, 13, 16, BlockGrass)
+	world.SetBlock(16, 13, 16, BlockType(DefaultBlockID))
 
 	// Tentar pular
 	input.Jump = true
@@ -277,7 +277,7 @@ func TestPlayerAiming_MaxDistance(t *testing.T) {
 	player := NewPlayer(rl.NewVector3(16, 12, 16))
 
 	// Colocar um bloco muito longe (além do alcance de 8 blocos)
-	world.SetBlock(16, 11, 30, BlockGrass)
+	world.SetBlock(16, 11, 30, BlockType(DefaultBlockID))
 
 	player.Yaw = 0
 	player.Pitch = 0
@@ -322,7 +322,7 @@ func TestPlayerPlaceBlock(t *testing.T) {
 	placeZ := int32(player.PlaceBlock.Z)
 
 	// Verificar que a posição está vazia
-	if world.GetBlock(placeX, placeY, placeZ) != BlockAir {
+	if world.GetBlock(placeX, placeY, placeZ) != NoBlock {
 		t.Fatalf("Posição de colocação deveria estar vazia: (%d,%d,%d)", placeX, placeY, placeZ)
 	}
 
@@ -332,9 +332,9 @@ func TestPlayerPlaceBlock(t *testing.T) {
 
 	// Verificar que o bloco foi colocado
 	placedBlock := world.GetBlock(placeX, placeY, placeZ)
-	if placedBlock != BlockGrass {
+	if placedBlock != BlockType(DefaultBlockID) {
 		t.Errorf("Bloco deveria ter sido colocado em (%d,%d,%d). Tipo esperado: %v, Tipo atual: %v. Player pos: (%.2f, %.2f, %.2f)",
-			placeX, placeY, placeZ, BlockGrass, placedBlock, player.Position.X, player.Position.Y, player.Position.Z)
+			placeX, placeY, placeZ, BlockType(DefaultBlockID), placedBlock, player.Position.X, player.Position.Y, player.Position.Z)
 	}
 }
 
@@ -385,7 +385,7 @@ func TestPlayerPlaceBlock_CannotPlaceInOwnPosition(t *testing.T) {
 
 	// Verificar que o bloco NÃO foi colocado (porque colidiria com o jogador)
 	placedBlock := world.GetBlock(placeX, placeY, placeZ)
-	if placedBlock != BlockAir {
+	if placedBlock != NoBlock {
 		t.Errorf("Bloco NÃO deveria ter sido colocado em (%d,%d,%d) pois colidiria com o jogador. Tipo atual: %v",
 			placeX, placeY, placeZ, placedBlock)
 	}
@@ -400,7 +400,7 @@ func TestPlayerPlaceBlock_MultipleBlocks(t *testing.T) {
 	simulateFrames(player, world, input, 60)
 
 	// Teste simplificado: colocar 2 blocos manualmente
-	world.SetBlock(16, 11, 19, BlockGrass) // Bloco de referência
+	world.SetBlock(16, 11, 19, BlockType(DefaultBlockID)) // Bloco de referência
 
 	// Primeiro bloco
 	player.Yaw = 0
@@ -414,7 +414,7 @@ func TestPlayerPlaceBlock_MultipleBlocks(t *testing.T) {
 	}
 
 	// Colocar segundo bloco de referência
-	world.SetBlock(16, 11, 21, BlockGrass)
+	world.SetBlock(16, 11, 21, BlockType(DefaultBlockID))
 
 	// Mover e colocar segundo bloco
 	input.Forward = true
@@ -432,7 +432,7 @@ func TestPlayerPlaceBlock_MultipleBlocks(t *testing.T) {
 	for y := int32(11); y <= 13; y++ {
 		for z := int32(18); z <= 22; z++ {
 			block := world.GetBlock(16, y, z)
-			if block == BlockGrass {
+			if block == BlockType(DefaultBlockID) {
 				placedCount++
 			}
 		}
@@ -469,7 +469,7 @@ func TestPlayerRemoveBlock(t *testing.T) {
 	targetZ := int32(player.TargetBlock.Z)
 
 	// Verificar que está mirando no terreno (deveria ser grass)
-	if world.GetBlock(targetX, targetY, targetZ) != BlockGrass {
+	if world.GetBlock(targetX, targetY, targetZ) != BlockType(DefaultBlockID) {
 		t.Fatalf("Deveria estar mirando em um bloco de grama. Bloco: %v", world.GetBlock(targetX, targetY, targetZ))
 	}
 
@@ -479,9 +479,9 @@ func TestPlayerRemoveBlock(t *testing.T) {
 
 	// Verificar que o bloco foi removido
 	removedBlock := world.GetBlock(targetX, targetY, targetZ)
-	if removedBlock != BlockAir {
+	if removedBlock != NoBlock {
 		t.Errorf("Bloco em (%d,%d,%d) deveria ter sido removido. Esperado: %v, Atual: %v",
-			targetX, targetY, targetZ, BlockAir, removedBlock)
+			targetX, targetY, targetZ, NoBlock, removedBlock)
 	}
 }
 
@@ -532,7 +532,7 @@ func TestPlayerRemoveBlock_TerrainModification(t *testing.T) {
 	player.Update(1.0/60.0, world, input)
 
 	// Verificar que foi removido
-	if world.GetBlock(targetX, targetY, targetZ) != BlockAir {
+	if world.GetBlock(targetX, targetY, targetZ) != NoBlock {
 		t.Error("Bloco do terreno deveria ter sido removido")
 	}
 

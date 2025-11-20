@@ -76,7 +76,7 @@ func (inv *InventoryUI) loadTextures() {
 	}
 	inv.TextureCache = make(map[uint16]rl.Texture2D)
 
-	// Carregar texturas dos blocos customizados
+	// Carregar texturas de todos os blocos customizados (incluindo o default que é ID 256)
 	customBlocks := inv.CustomBlockMgr.ListBlocks()
 	for _, block := range customBlocks {
 		if block.FaceTextures[FaceFront] != "" {
@@ -92,10 +92,7 @@ func (inv *InventoryUI) loadTextures() {
 func (inv *InventoryUI) refreshBlockList() {
 	inv.FilteredBlocks = make([]BlockType, 0)
 
-	// Adicionar blocos padrão
-	inv.FilteredBlocks = append(inv.FilteredBlocks, BlockGrass)
-
-	// Adicionar blocos customizados
+	// Adicionar todos os blocos customizados (incluindo o default com ID 256)
 	customBlocks := inv.CustomBlockMgr.ListBlocks()
 	for _, block := range customBlocks {
 		inv.FilteredBlocks = append(inv.FilteredBlocks, BlockType(block.ID))
@@ -124,23 +121,16 @@ func (inv *InventoryUI) refreshBlockList() {
 
 // getBlockName retorna o nome de um bloco
 func (inv *InventoryUI) getBlockName(blockType BlockType) string {
-	if IsCustomBlock(blockType) {
-		blockID := GetCustomBlockID(blockType)
-		block := inv.CustomBlockMgr.GetBlock(blockID)
-		if block != nil {
-			return block.Name
-		}
-		return fmt.Sprintf("Custom %d", blockID)
+	if blockType == NoBlock {
+		return "Vazio"
 	}
 
-	switch blockType {
-	case BlockGrass:
-		return "Grass"
-	case BlockAir:
-		return "Air"
-	default:
-		return fmt.Sprintf("Block %d", blockType)
+	// Todos os blocos são customizados agora (ID >= 256)
+	block := inv.CustomBlockMgr.GetBlock(uint16(blockType))
+	if block != nil {
+		return block.Name
 	}
+	return fmt.Sprintf("Block %d", blockType)
 }
 
 // Update atualiza a lógica do inventário
@@ -311,7 +301,7 @@ func (inv *InventoryUI) Render() {
 	}
 
 	// Mostrar quantidade de blocos
-	totalBlocks := 1 + len(inv.CustomBlockMgr.ListBlocks()) // 1 padrão + customizados
+	totalBlocks := len(inv.CustomBlockMgr.ListBlocks())
 	countText := fmt.Sprintf("%d/%d blocos", len(inv.FilteredBlocks), totalBlocks)
 	rl.DrawText(countText, gridX+gridWidth-120, searchY+8, 16, rl.Gray)
 
@@ -370,46 +360,23 @@ func (inv *InventoryUI) drawBlockSlot(blockType BlockType, x, y, size int32) {
 
 // drawBlockIcon desenha o ícone de um bloco
 func (inv *InventoryUI) drawBlockIcon(blockType BlockType, x, y, size int32) {
-	if blockType == BlockAir {
+	if blockType == NoBlock {
 		return
 	}
 
-	// Cor baseada no tipo
-	var blockColor rl.Color
+	// Todos os blocos são customizados agora (ID >= 256)
+	texID := uint16(blockType)
 
-	if IsCustomBlock(blockType) {
-		blockID := GetCustomBlockID(blockType)
-
-		// Usar textura do cache
-		if tex, exists := inv.TextureCache[blockID]; exists && tex.ID != 0 {
-			rl.DrawTexturePro(tex,
-				rl.NewRectangle(0, 0, float32(tex.Width), float32(tex.Height)),
-				rl.NewRectangle(float32(x), float32(y), float32(size), float32(size)),
-				rl.NewVector2(0, 0), 0, rl.White)
-			return
-		}
-		// Fallback: cor azul para customizado (diferente do Grass)
-		blockColor = rl.NewColor(100, 150, 200, 255)
-	} else {
-		switch blockType {
-		case BlockGrass:
-			blockColor = rl.NewColor(100, 200, 100, 255)
-		default:
-			blockColor = rl.Gray
-		}
+	if tex, exists := inv.TextureCache[texID]; exists && tex.ID != 0 {
+		rl.DrawTexturePro(tex,
+			rl.NewRectangle(0, 0, float32(tex.Width), float32(tex.Height)),
+			rl.NewRectangle(float32(x), float32(y), float32(size), float32(size)),
+			rl.NewVector2(0, 0), 0, rl.White)
+		return
 	}
 
-	// Desenhar quadrado colorido
-	rl.DrawRectangle(x, y, size, size, blockColor)
-
-	// Desenhar "3D" simples
-	darker := rl.NewColor(
-		uint8(float32(blockColor.R)*0.7),
-		uint8(float32(blockColor.G)*0.7),
-		uint8(float32(blockColor.B)*0.7),
-		255,
-	)
-	rl.DrawRectangle(x, y+size-size/4, size, size/4, darker)
+	// Fallback: cor cinza
+	rl.DrawRectangle(x, y, size, size, rl.Gray)
 }
 
 // renderHotbar desenha o hotbar dentro do inventário
@@ -448,7 +415,7 @@ func (inv *InventoryUI) renderHotbar() {
 
 		// Desenhar bloco no slot
 		blockType := inv.Hotbar.Slots[i]
-		if blockType != BlockAir {
+		if blockType != NoBlock {
 			inv.drawBlockIcon(blockType, x+5, y+5, slotSize-10)
 		}
 	}

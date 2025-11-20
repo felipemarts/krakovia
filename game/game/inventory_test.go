@@ -26,8 +26,9 @@ func TestBlockTypeSize(t *testing.T) {
 		t.Error("IsCustomBlock(1) deve retornar false")
 	}
 
-	if IsCustomBlock(BlockGrass) {
-		t.Error("IsCustomBlock(BlockGrass) deve retornar false")
+	// DefaultBlockID (256) is a custom block now
+	if !IsCustomBlock(BlockType(DefaultBlockID)) {
+		t.Error("IsCustomBlock(BlockType(DefaultBlockID)) deve retornar true")
 	}
 }
 
@@ -70,6 +71,9 @@ func TestCustomBlockManager(t *testing.T) {
 func TestGetBlockName(t *testing.T) {
 	cbm := NewCustomBlockManager()
 
+	// Criar o bloco padrão (não falha mesmo sem a textura)
+	cbm.EnsureDefaultBlock()
+
 	// Criar um bloco customizado
 	block := cbm.CreateBlock("MeuBloco")
 
@@ -78,10 +82,10 @@ func TestGetBlockName(t *testing.T) {
 		CustomBlockMgr: cbm,
 	}
 
-	// Testar nome de bloco padrão
-	name := inv.getBlockName(BlockGrass)
-	if name != "Grass" {
-		t.Errorf("Nome do BlockGrass incorreto: got %s, want Grass", name)
+	// Testar nome de bloco padrão (agora é um bloco customizado com nome "Default")
+	name := inv.getBlockName(BlockType(DefaultBlockID))
+	if name != "Default" {
+		t.Errorf("Nome do BlockType(DefaultBlockID) incorreto: got %s, want Default", name)
 	}
 
 	// Testar nome de bloco customizado
@@ -94,6 +98,9 @@ func TestGetBlockName(t *testing.T) {
 // TestInventoryRefreshBlockList verifica se a lista de blocos é atualizada corretamente
 func TestInventoryRefreshBlockList(t *testing.T) {
 	cbm := NewCustomBlockManager()
+
+	// Criar o bloco padrão (não falha mesmo sem a textura)
+	cbm.EnsureDefaultBlock()
 
 	// Criar alguns blocos customizados
 	cbm.CreateBlock("Bloco1")
@@ -109,18 +116,18 @@ func TestInventoryRefreshBlockList(t *testing.T) {
 	// Atualizar lista
 	inv.refreshBlockList()
 
-	// Deve ter 1 bloco padrão (Grass) + 3 customizados = 4
+	// Deve ter 4 blocos (Default + 3 customizados)
 	if len(inv.FilteredBlocks) != 4 {
 		t.Errorf("FilteredBlocks deve ter 4 blocos, got %d", len(inv.FilteredBlocks))
 	}
 
-	// Primeiro bloco deve ser Grass
-	if inv.FilteredBlocks[0] != BlockGrass {
-		t.Errorf("Primeiro bloco deve ser BlockGrass, got %d", inv.FilteredBlocks[0])
+	// Primeiro bloco deve ser Default (ID 256)
+	if inv.FilteredBlocks[0] != BlockType(DefaultBlockID) {
+		t.Errorf("Primeiro bloco deve ser BlockType(DefaultBlockID), got %d", inv.FilteredBlocks[0])
 	}
 
-	// Blocos customizados devem ter IDs >= 256
-	for i := 1; i < len(inv.FilteredBlocks); i++ {
+	// Todos os blocos devem ser customizados (ID >= 256)
+	for i := 0; i < len(inv.FilteredBlocks); i++ {
 		if !IsCustomBlock(inv.FilteredBlocks[i]) {
 			t.Errorf("Bloco %d deve ser customizado, ID: %d", i, inv.FilteredBlocks[i])
 		}

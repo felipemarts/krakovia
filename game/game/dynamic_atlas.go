@@ -57,9 +57,9 @@ func NewDynamicAtlasManager(gridSize, tileSize int32) *DynamicAtlasManager {
 	dam.AtlasImage = image.NewRGBA(image.Rect(0, 0, int(dam.AtlasPixelSize), int(dam.AtlasPixelSize)))
 
 	// Carregar textura default no slot 0
-	dam.LoadTexture(BlockAir, DefaultTextureFile)
-	dam.BlockToSlot[BlockAir] = 0
-	dam.SlotToBlock[0] = BlockAir
+	dam.LoadTexture(NoBlock, DefaultTextureFile)
+	dam.BlockToSlot[NoBlock] = 0
+	dam.SlotToBlock[0] = NoBlock
 	dam.UsedSlots[0] = true
 
 	return dam

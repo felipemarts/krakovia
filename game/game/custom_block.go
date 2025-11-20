@@ -53,7 +53,7 @@ type CustomBlockDefinition struct {
 }
 
 // CustomBlockIDStart é o ID inicial para blocos customizados
-// Blocos padrão (BlockAir, BlockGrass) usam IDs 0-255
+// Blocos padrão (NoBlock, BlockGrass) usam IDs 0-255
 // Blocos customizados usam IDs 256+
 const CustomBlockIDStart = 256
 
@@ -100,6 +100,62 @@ func NewCustomBlockManager() *CustomBlockManager {
 	cbm.Atlas = NewDynamicAtlasManager(16, 32)
 
 	return cbm
+}
+
+// EnsureDefaultBlock garante que o bloco padrão existe com ID 256
+func (cbm *CustomBlockManager) EnsureDefaultBlock() error {
+	cbm.mu.Lock()
+	defer cbm.mu.Unlock()
+
+	// Verificar se o bloco padrão já existe
+	if _, exists := cbm.Blocks[DefaultBlockID]; exists {
+		return nil
+	}
+
+	// Criar o bloco padrão
+	block := &CustomBlockDefinition{
+		ID:        DefaultBlockID,
+		Name:      "Default",
+		CreatedAt: 0,
+	}
+
+	// Tentar carregar a textura padrão para todas as faces
+	file, err := os.Open(DefaultBlockTexturePath)
+	if err == nil {
+		defer file.Close()
+
+		img, _, decodeErr := image.Decode(file)
+		if decodeErr == nil {
+			// Converter para RGBA
+			bounds := img.Bounds()
+			rgbaImg := image.NewRGBA(bounds)
+			for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+				for x := bounds.Min.X; x < bounds.Max.X; x++ {
+					rgbaImg.Set(x, y, img.At(x, y))
+				}
+			}
+
+			// Aplicar a mesma textura para todas as faces
+			for faceIdx := 0; faceIdx < 6; faceIdx++ {
+				block.FaceImages[faceIdx] = rgbaImg
+			}
+		}
+	}
+
+	// Definir caminhos de textura (mesmo que as imagens não tenham sido carregadas)
+	for faceIdx := 0; faceIdx < 6; faceIdx++ {
+		block.FaceTextures[faceIdx] = DefaultBlockTexturePath
+	}
+
+	// Adicionar ao mapa
+	cbm.Blocks[block.ID] = block
+
+	// Atualizar próximo ID se necessário
+	if block.ID >= cbm.NextID {
+		cbm.NextID = block.ID + 1
+	}
+
+	return nil
 }
 
 // CreateBlock cria um novo bloco customizado

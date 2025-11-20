@@ -26,14 +26,14 @@ func (tg *TerrainGenerator) hash3D(x, y, z int32) uint64 {
 func (tg *TerrainGenerator) GetBlockTypeAt(x, y, z int32) BlockType {
 	// Camada de ar acima de y=8
 	if y > 8 {
-		return BlockAir
+		return NoBlock
 	}
 
 	// Terreno sólido - apenas um tipo de bloco
 	if y >= 0 && y <= 8 {
-		return BlockGrass
+		return BlockType(DefaultBlockID)
 	}
 
 	// Abaixo de y=0
-	return BlockGrass
+	return BlockType(DefaultBlockID)
 }

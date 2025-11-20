@@ -393,7 +393,7 @@ func NewPlayer(position rl.Vector3) *Player {
 		ThirdPersonDistance: 5.0,
 		FirstPersonDistance: 0.35,
 		ModelOpacity:        1.0,       // Começa opaco
-		SelectedBlock:       BlockGrass, // Bloco padrão
+		SelectedBlock:       BlockType(DefaultBlockID), // Bloco padrão
 	}
 
 	// Carregar modelo 3D do player
@@ -537,7 +537,7 @@ func (p *Player) Update(dt float32, world *World, input Input) {
 	// InteraÃ§Ã£o com blocos
 	if input.IsLeftClickPressed() && p.LookingAtBlock {
 		// Remover bloco
-		world.SetBlock(int32(p.TargetBlock.X), int32(p.TargetBlock.Y), int32(p.TargetBlock.Z), BlockAir)
+		world.SetBlock(int32(p.TargetBlock.X), int32(p.TargetBlock.Y), int32(p.TargetBlock.Z), NoBlock)
 		// Iniciar animação de interação
 		p.startInteractAnimation()
 	}
@@ -551,7 +551,7 @@ func (p *Player) Update(dt float32, world *World, input Input) {
 		)
 
 		// Verificar se o bloco que vai ser colocado não colide com o jogador
-		if !p.wouldBlockCollideWithPlayer(placePos) && p.SelectedBlock != BlockAir {
+		if !p.wouldBlockCollideWithPlayer(placePos) && p.SelectedBlock != NoBlock {
 			world.SetBlock(int32(p.PlaceBlock.X), int32(p.PlaceBlock.Y), int32(p.PlaceBlock.Z), p.SelectedBlock)
 			// Iniciar animação de interação
 			p.startInteractAnimation()
@@ -862,7 +862,7 @@ func (p *Player) isCameraObstructed(world *World, point rl.Vector3) bool {
 	y := int32(math.Floor(float64(point.Y)))
 	z := int32(math.Floor(float64(point.Z)))
 
-	return world.GetBlock(x, y, z) != BlockAir
+	return world.GetBlock(x, y, z) != NoBlock
 }
 
 func smoothApproach(current, target, dt, speed float32) float32 {
@@ -1058,7 +1058,7 @@ func (p *Player) CheckCollision(newPos rl.Vector3, world *World) bool {
 		for y := minY; y <= maxY; y++ {
 			for z := minZ; z <= maxZ; z++ {
 				blockType := world.GetBlock(x, y, z)
-				if blockType != BlockAir {
+				if blockType != NoBlock {
 					// OtimizaÃ§Ã£o: ignorar colisÃ£o com blocos completamente ocultos
 					// (eles nÃ£o podem ser alcanÃ§ados pelo jogador)
 					if world.IsBlockHidden(x, y, z) {
@@ -1163,7 +1163,7 @@ func (p *Player) RaycastBlocks(world *World) {
 	// DDA traversal
 	for t := float32(0); t < maxDistance; {
 		// Verificar se o voxel atual contÃ©m um bloco
-		if world.GetBlock(voxelX, voxelY, voxelZ) != BlockAir {
+		if world.GetBlock(voxelX, voxelY, voxelZ) != NoBlock {
 			p.LookingAtBlock = true
 			p.TargetBlock = rl.NewVector3(float32(voxelX), float32(voxelY), float32(voxelZ))
 			p.PlaceBlock = rl.NewVector3(float32(prevVoxelX), float32(prevVoxelY), float32(prevVoxelZ))

@@ -15,7 +15,7 @@ func TestGetBlockCoordinateMapping(t *testing.T) {
 	for x := int32(0); x < ChunkSize; x++ {
 		for y := int32(0); y < ChunkHeight; y++ {
 			for z := int32(0); z < ChunkSize; z++ {
-				chunk.Blocks[x][y][z] = BlockGrass
+				chunk.Blocks[x][y][z] = BlockType(DefaultBlockID)
 			}
 		}
 	}
@@ -32,31 +32,31 @@ func TestGetBlockCoordinateMapping(t *testing.T) {
 		{
 			name:   "Origem do chunk (0,0,0)",
 			worldX: 0, worldY: 0, worldZ: 0,
-			expectedBlock:  BlockGrass,
+			expectedBlock:  BlockType(DefaultBlockID),
 			expectedLocalX: 0, expectedLocalY: 0, expectedLocalZ: 0,
 		},
 		{
 			name:   "Centro do chunk (16,16,16)",
 			worldX: 16, worldY: 16, worldZ: 16,
-			expectedBlock:  BlockGrass,
+			expectedBlock:  BlockType(DefaultBlockID),
 			expectedLocalX: 16, expectedLocalY: 16, expectedLocalZ: 16,
 		},
 		{
 			name:   "Última posição do chunk (31,31,31)",
 			worldX: 31, worldY: 31, worldZ: 31,
-			expectedBlock:  BlockGrass,
+			expectedBlock:  BlockType(DefaultBlockID),
 			expectedLocalX: 31, expectedLocalY: 31, expectedLocalZ: 31,
 		},
 		{
 			name:   "Bloco problemático Y-1 de (31,0,0)",
 			worldX: 31, worldY: -1, worldZ: 0,
-			expectedBlock:  BlockAir,                                   // Chunk não existe
+			expectedBlock:  NoBlock,                                   // Chunk não existe
 			expectedLocalX: -1, expectedLocalY: -1, expectedLocalZ: -1, // Inválido
 		},
 		{
 			name:   "Bloco problemático Z-1 de (31,0,0)",
 			worldX: 31, worldY: 0, worldZ: -1,
-			expectedBlock:  BlockAir,                                   // Chunk não existe
+			expectedBlock:  NoBlock,                                   // Chunk não existe
 			expectedLocalX: -1, expectedLocalY: -1, expectedLocalZ: -1, // Inválido
 		},
 	}
@@ -94,7 +94,7 @@ func TestGetBlockAtBoundaries(t *testing.T) {
 	for x := int32(0); x < ChunkSize; x++ {
 		for y := int32(0); y < ChunkHeight; y++ {
 			for z := int32(0); z < ChunkSize; z++ {
-				chunk.Blocks[x][y][z] = BlockGrass
+				chunk.Blocks[x][y][z] = BlockType(DefaultBlockID)
 			}
 		}
 	}
@@ -104,7 +104,7 @@ func TestGetBlockAtBoundaries(t *testing.T) {
 	for x := int32(0); x < 5; x++ {
 		for z := int32(0); z < 5; z++ {
 			block := cm.GetBlock(x, 0, z)
-			if block != BlockGrass {
+			if block != BlockType(DefaultBlockID) {
 				t.Errorf("Bloco (%d, 0, %d) deveria ser pedra, mas é %v", x, z, block)
 			}
 		}
@@ -114,7 +114,7 @@ func TestGetBlockAtBoundaries(t *testing.T) {
 	for x := int32(0); x < 5; x++ {
 		for y := int32(0); y < 5; y++ {
 			block := cm.GetBlock(x, y, 0)
-			if block != BlockGrass {
+			if block != BlockType(DefaultBlockID) {
 				t.Errorf("Bloco (%d, %d, 0) deveria ser pedra, mas é %v", x, y, block)
 			}
 		}

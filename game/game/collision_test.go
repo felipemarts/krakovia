@@ -25,11 +25,11 @@ func createChunkedFlatWorld() *World {
 					// Preencher blocos até Y=10
 					for cy := int32(0); cy <= 10; cy++ {
 						if cy < 8 {
-							chunk.Blocks[cx][cy][cz] = BlockGrass
+							chunk.Blocks[cx][cy][cz] = BlockType(DefaultBlockID)
 						} else if cy < 10 {
-							chunk.Blocks[cx][cy][cz] = BlockGrass
+							chunk.Blocks[cx][cy][cz] = BlockType(DefaultBlockID)
 						} else {
-							chunk.Blocks[cx][cy][cz] = BlockGrass
+							chunk.Blocks[cx][cy][cz] = BlockType(DefaultBlockID)
 						}
 					}
 				}
@@ -151,7 +151,7 @@ func TestCollision_PlayerCollidesWithWall(t *testing.T) {
 
 	// Colocar uma parede na frente do player
 	for y := int32(11); y <= 13; y++ {
-		world.SetBlock(16, y, 20, BlockGrass)
+		world.SetBlock(16, y, 20, BlockType(DefaultBlockID))
 	}
 
 	initialZ := player.Position.Z
@@ -183,7 +183,7 @@ func TestCollision_PlayerCollidesWithCeiling(t *testing.T) {
 	simulateCollisionFrames(player, world, input, 120)
 
 	// Colocar bloco acima (teto baixo)
-	world.SetBlock(16, 13, 16, BlockGrass)
+	world.SetBlock(16, 13, 16, BlockType(DefaultBlockID))
 
 	// Tentar pular
 	input.Jump = true
@@ -214,10 +214,10 @@ func TestCollision_PlayerCannotMoveIntoBlock(t *testing.T) {
 	simulateCollisionFrames(player, world, input, 120)
 
 	// Cercar player com blocos em todas as direções horizontais
-	world.SetBlock(16, 11, 17, BlockGrass) // Frente
-	world.SetBlock(16, 11, 15, BlockGrass) // Trás
-	world.SetBlock(17, 11, 16, BlockGrass) // Direita
-	world.SetBlock(15, 11, 16, BlockGrass) // Esquerda
+	world.SetBlock(16, 11, 17, BlockType(DefaultBlockID)) // Frente
+	world.SetBlock(16, 11, 15, BlockType(DefaultBlockID)) // Trás
+	world.SetBlock(17, 11, 16, BlockType(DefaultBlockID)) // Direita
+	world.SetBlock(15, 11, 16, BlockType(DefaultBlockID)) // Esquerda
 
 	initialPos := player.Position
 
@@ -297,7 +297,7 @@ func TestCollision_HighSpeedNoClipping(t *testing.T) {
 
 	// Colocar parede
 	for y := int32(11); y <= 13; y++ {
-		world.SetBlock(16, y, 19, BlockGrass)
+		world.SetBlock(16, y, 19, BlockType(DefaultBlockID))
 	}
 
 	// Tentar mover muito rápido em direção à parede

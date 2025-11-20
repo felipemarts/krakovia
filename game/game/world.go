@@ -46,6 +46,12 @@ func (w *World) InitWorldGraphics() {
 		// fmt.Printf("AVISO: Erro ao carregar blocos customizados: %v\n", err)
 	}
 
+	// Garantir que o bloco padrão existe
+	err = w.CustomBlocks.EnsureDefaultBlock()
+	if err != nil {
+		// fmt.Printf("AVISO: Erro ao criar bloco padrão: %v\n", err)
+	}
+
 	// Reconstruir atlas de blocos customizados
 	w.CustomBlocks.BuildAtlas()
 
@@ -89,7 +95,7 @@ func (w *World) InitWorldGraphics() {
 
 	// Criar meshes com UVs customizadas para cada tipo de bloco
 	// NOTA: Essas meshes não são mais usadas com o sistema de chunks
-	w.GrassMesh = CreateTexturedCubeMesh(BlockGrass)
+	w.GrassMesh = CreateTexturedCubeMesh(BlockType(DefaultBlockID))
 }
 
 func (w *World) SetBlock(x, y, z int32, block BlockType) {
@@ -141,7 +147,7 @@ func (w *World) UpdateDynamicAtlas() {
 			for y := int32(0); y < ChunkHeight; y += 8 {
 				for z := int32(0); z < ChunkSize; z += 8 {
 					blockType := chunk.Blocks[x][y][z]
-					if blockType != BlockAir {
+					if blockType != NoBlock {
 						uniqueTypes[blockType] = true
 					}
 				}

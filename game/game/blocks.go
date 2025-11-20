@@ -1,13 +1,17 @@
 package game
 
 // BlockType representa o tipo de um bloco no mundo
-// Usando uint16 para suportar blocos customizados (IDs >= 256)
+// 0 = sem bloco, >= 256 = bloco customizado
 type BlockType uint16
 
-const (
-	BlockAir BlockType = iota
-	BlockGrass
-)
+// NoBlock representa ausência de bloco
+const NoBlock BlockType = 0
+
+// DefaultBlockTexturePath é o caminho da textura padrão
+const DefaultBlockTexturePath = "assets/default_block.png"
+
+// DefaultBlockID é o ID do bloco padrão (primeiro bloco customizado)
+const DefaultBlockID uint16 = 256
 
 // GetBlockUVs retorna as coordenadas UV normalizadas (0-1) para um tipo de bloco
 // Atlas é 8x8, cada textura 32x32 pixels (256x256 total)
@@ -16,8 +20,8 @@ func GetBlockUVs(blockType BlockType) (uMin, vMin, uMax, vMax float32) {
 	var row, col int32
 
 	switch blockType {
-	case BlockGrass:
-		row, col = 3, 2
+	case BlockType(DefaultBlockID):
+		row, col = 0, 0
 	default:
 		row, col = 0, 0 // Default: primeira textura
 	}

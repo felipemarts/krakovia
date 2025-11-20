@@ -141,7 +141,7 @@ func (cm *ChunkManager) GetBlock(x, y, z int32) BlockType {
 	// Verificar se o chunk existe
 	chunk, exists := cm.Chunks[key]
 	if !exists {
-		return BlockAir
+		return NoBlock
 	}
 
 	// Converter para coordenadas locais do chunk
@@ -170,7 +170,7 @@ func (cm *ChunkManager) IsBlockHidden(x, y, z int32) bool {
 		neighborBlock := cm.GetBlock(x+dir.dx, y+dir.dy, z+dir.dz)
 
 		// Se o vizinho é ar, o bloco está exposto
-		if neighborBlock == BlockAir {
+		if neighborBlock == NoBlock {
 			return false
 		}
 	}

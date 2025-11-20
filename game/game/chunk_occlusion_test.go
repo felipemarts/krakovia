@@ -120,7 +120,7 @@ func TestBlockOcclusion(t *testing.T) {
 				for x := int32(0); x < ChunkSize; x++ {
 					for y := int32(0); y < ChunkHeight; y++ {
 						for z := int32(0); z < ChunkSize; z++ {
-							chunk.Blocks[x][y][z] = BlockGrass
+							chunk.Blocks[x][y][z] = BlockType(DefaultBlockID)
 						}
 					}
 				}
@@ -135,25 +135,25 @@ func TestBlockOcclusion(t *testing.T) {
 				for x := int32(0); x < ChunkSize; x++ {
 					for y := int32(0); y < ChunkHeight; y++ {
 						for z := int32(0); z < ChunkSize; z++ {
-							chunk.Blocks[x][y][z] = BlockAir
+							chunk.Blocks[x][y][z] = NoBlock
 						}
 					}
 				}
 				// Colocar apenas um bloco no centro
-				chunk.Blocks[16][16][16] = BlockGrass
+				chunk.Blocks[16][16][16] = BlockType(DefaultBlockID)
 			}
 
 			// Para o teste "Bloco na borda sem vizinho", remover o bloco vizinho no ar
 			if tt.name == "Bloco na borda do chunk sem vizinho no próximo chunk (X+) - coordenadas positivas" {
 				chunk := cm.Chunks[ChunkCoord{X: 0, Y: 0, Z: 0}.Key()]
 				// Garantir que há um bloco na borda
-				chunk.Blocks[31][16][16] = BlockGrass
+				chunk.Blocks[31][16][16] = BlockType(DefaultBlockID)
 				// Mas todos os vizinhos internos também são pedra
-				chunk.Blocks[30][16][16] = BlockGrass // Vizinho X-
-				chunk.Blocks[31][17][16] = BlockGrass // Vizinho Y+
-				chunk.Blocks[31][15][16] = BlockGrass // Vizinho Y-
-				chunk.Blocks[31][16][17] = BlockGrass // Vizinho Z+
-				chunk.Blocks[31][16][15] = BlockGrass // Vizinho Z-
+				chunk.Blocks[30][16][16] = BlockType(DefaultBlockID) // Vizinho X-
+				chunk.Blocks[31][17][16] = BlockType(DefaultBlockID) // Vizinho Y+
+				chunk.Blocks[31][15][16] = BlockType(DefaultBlockID) // Vizinho Y-
+				chunk.Blocks[31][16][17] = BlockType(DefaultBlockID) // Vizinho Z+
+				chunk.Blocks[31][16][15] = BlockType(DefaultBlockID) // Vizinho Z-
 				// O vizinho X+ está no próximo chunk que não existe
 			}
 

@@ -40,7 +40,7 @@ func NewChunk(x, y, z int32) *Chunk {
 // GetBlock retorna o tipo de bloco nas coordenadas locais do chunk (0-31)
 func (c *Chunk) GetBlock(x, y, z int32) BlockType {
 	if x < 0 || x >= ChunkSize || y < 0 || y >= ChunkHeight || z < 0 || z >= ChunkSize {
-		return BlockAir
+		return NoBlock
 	}
 	return c.Blocks[x][y][z]
 }
@@ -87,7 +87,7 @@ func (c *Chunk) GenerateTerrain() {
 
 					if worldBlockY <= terrainHeight {
 						// Usar apenas um tipo de bloco
-						c.Blocks[x][y][z] = BlockGrass
+						c.Blocks[x][y][z] = BlockType(DefaultBlockID)
 					}
 				}
 			}
@@ -144,7 +144,7 @@ func (c *Chunk) IsBlockHiddenLocal(x, y, z int32) bool {
 		}
 
 		// Se o vizinho é ar, o bloco está exposto (visível)
-		if c.Blocks[nx][ny][nz] == BlockAir {
+		if c.Blocks[nx][ny][nz] == NoBlock {
 			return false
 		}
 	}
@@ -155,7 +155,7 @@ func (c *Chunk) IsBlockHiddenLocal(x, y, z int32) bool {
 
 // UpdateMeshes atualiza a mesh sem considerar chunks vizinhos (fallback)
 func (c *Chunk) UpdateMeshes(atlas *DynamicAtlasManager) {
-	// Usar a versão com vizinhos, mas retornar BlockAir para blocos fora do chunk
+	// Usar a versão com vizinhos, mas retornar NoBlock para blocos fora do chunk
 	c.UpdateMeshesWithNeighbors(func(x, y, z int32) BlockType {
 		// Converter para coordenadas locais
 		localX := x - c.Coord.X*ChunkSize
@@ -164,7 +164,7 @@ func (c *Chunk) UpdateMeshes(atlas *DynamicAtlasManager) {
 
 		// Se está fora do chunk, retornar ar
 		if localX < 0 || localX >= ChunkSize || localY < 0 || localY >= ChunkHeight || localZ < 0 || localZ >= ChunkSize {
-			return BlockAir
+			return NoBlock
 		}
 
 		return c.Blocks[localX][localY][localZ]
@@ -209,7 +209,7 @@ func (c *Chunk) UpdateMeshesWithNeighbors(getBlockFunc func(x, y, z int32) Block
 		for y := int32(0); y < ChunkHeight; y++ {
 			for z := int32(0); z < ChunkSize; z++ {
 				blockType := c.Blocks[x][y][z]
-				if blockType == BlockAir {
+				if blockType == NoBlock {
 					continue
 				}
 
@@ -226,7 +226,7 @@ func (c *Chunk) UpdateMeshesWithNeighbors(getBlockFunc func(x, y, z int32) Block
 					neighborBlock := getBlockFunc(wx+dir.dx, wy+dir.dy, wz+dir.dz)
 
 					// Se o vizinho é ar, a face está exposta
-					if neighborBlock == BlockAir {
+					if neighborBlock == NoBlock {
 						// Para blocos customizados, usar textura específica da face
 						if IsCustomBlock(blockType) {
 							faceBlockType := EncodeCustomBlockFace(GetCustomBlockID(blockType), BlockFace(faceIndex))

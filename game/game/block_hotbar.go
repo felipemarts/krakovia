@@ -32,12 +32,12 @@ func NewBlockHotbar(cbm *CustomBlockManager) *BlockHotbar {
 		TextureCache: make(map[uint16]rl.Texture2D),
 	}
 
-	// Slot 0 é sempre BlockGrass por padrão
-	hb.Slots[0] = BlockGrass
+	// Slot 0 é sempre BlockType(DefaultBlockID) por padrão
+	hb.Slots[0] = BlockType(DefaultBlockID)
 
-	// Outros slots começam vazios (BlockAir)
+	// Outros slots começam vazios (NoBlock)
 	for i := 1; i < 9; i++ {
-		hb.Slots[i] = BlockAir
+		hb.Slots[i] = NoBlock
 	}
 
 	// Carregar texturas iniciais
@@ -56,7 +56,7 @@ func (hb *BlockHotbar) ReloadTextures() {
 	}
 	hb.TextureCache = make(map[uint16]rl.Texture2D)
 
-	// Carregar texturas dos blocos customizados
+	// Carregar texturas de todos os blocos customizados (incluindo o default que é ID 256)
 	customBlocks := hb.CustomBlocks.ListBlocks()
 	for _, block := range customBlocks {
 		if block.FaceTextures[FaceFront] != "" {
@@ -116,7 +116,7 @@ func (hb *BlockHotbar) AddCustomBlock(blockID uint16) bool {
 
 	// Procurar slot vazio
 	for i := 0; i < 9; i++ {
-		if hb.Slots[i] == BlockAir {
+		if hb.Slots[i] == NoBlock {
 			hb.Slots[i] = blockType
 			return true
 		}
@@ -161,31 +161,20 @@ func (hb *BlockHotbar) Render() {
 
 		// Desenhar representação do bloco
 		blockType := hb.Slots[i]
-		if blockType != BlockAir {
+		if blockType != NoBlock {
 			innerSize := slotSize - 10
 
-			if IsCustomBlock(blockType) {
-				// Bloco customizado - usar textura do cache
-				blockID := GetCustomBlockID(blockType)
-				if tex, exists := hb.TextureCache[blockID]; exists && tex.ID != 0 {
-					rl.DrawTexturePro(tex,
-						rl.NewRectangle(0, 0, float32(tex.Width), float32(tex.Height)),
-						rl.NewRectangle(float32(x+5), float32(y+5), float32(innerSize), float32(innerSize)),
-						rl.NewVector2(0, 0), 0, rl.White)
-				} else {
-					// Fallback: cor azul para customizado
-					rl.DrawRectangle(x+5, y+5, innerSize, innerSize, rl.NewColor(100, 150, 200, 255))
-				}
+			// Todos os blocos são customizados agora (ID >= 256)
+			texID := uint16(blockType)
+
+			if tex, exists := hb.TextureCache[texID]; exists && tex.ID != 0 {
+				rl.DrawTexturePro(tex,
+					rl.NewRectangle(0, 0, float32(tex.Width), float32(tex.Height)),
+					rl.NewRectangle(float32(x+5), float32(y+5), float32(innerSize), float32(innerSize)),
+					rl.NewVector2(0, 0), 0, rl.White)
 			} else {
-				// Bloco padrão
-				var blockColor rl.Color
-				switch blockType {
-				case BlockGrass:
-					blockColor = rl.NewColor(100, 200, 100, 255)
-				default:
-					blockColor = rl.Gray
-				}
-				rl.DrawRectangle(x+5, y+5, innerSize, innerSize, blockColor)
+				// Fallback: cor cinza
+				rl.DrawRectangle(x+5, y+5, innerSize, innerSize, rl.Gray)
 			}
 		}
 	}
@@ -199,22 +188,15 @@ func (hb *BlockHotbar) Render() {
 	// Mostrar nome do bloco selecionado
 	selectedBlock := hb.GetSelectedBlock()
 	var selectedName string
-	if selectedBlock == BlockAir {
+	if selectedBlock == NoBlock {
 		selectedName = "Vazio"
-	} else if IsCustomBlock(selectedBlock) {
-		blockID := GetCustomBlockID(selectedBlock)
-		block := hb.CustomBlocks.GetBlock(blockID)
+	} else {
+		// Todos os blocos são customizados agora (ID >= 256)
+		block := hb.CustomBlocks.GetBlock(uint16(selectedBlock))
 		if block != nil {
 			selectedName = block.Name
 		} else {
-			selectedName = "Custom"
-		}
-	} else {
-		switch selectedBlock {
-		case BlockGrass:
-			selectedName = "Grass"
-		default:
-			selectedName = "Unknown"
+			selectedName = fmt.Sprintf("Block %d", selectedBlock)
 		}
 	}
 

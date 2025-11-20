@@ -29,7 +29,7 @@ func (vbt *VisibleBlocksTracker) RegisterChunk(chunk *Chunk) {
 		for y := int32(0); y < ChunkHeight; y++ {
 			for z := int32(0); z < ChunkSize; z++ {
 				blockType := chunk.Blocks[x][y][z]
-				if blockType != BlockAir {
+				if blockType != NoBlock {
 					uniqueBlocks[blockType] = true
 				}
 			}
@@ -54,7 +54,7 @@ func (vbt *VisibleBlocksTracker) UnregisterChunk(chunk *Chunk) {
 		for y := int32(0); y < ChunkHeight; y++ {
 			for z := int32(0); z < ChunkSize; z++ {
 				blockType := chunk.Blocks[x][y][z]
-				if blockType != BlockAir {
+				if blockType != NoBlock {
 					uniqueBlocks[blockType] = true
 				}
 			}
