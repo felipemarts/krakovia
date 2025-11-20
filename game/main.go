@@ -79,38 +79,6 @@ func main() {
 			unifiedUI.Toggle()
 		}
 
-		// Comandos de debug para atlas dinâmico
-		if rl.IsKeyPressed(rl.KeyF1) {
-			// F1: Imprimir estatísticas do atlas
-			if world.DynamicAtlas != nil {
-				world.DynamicAtlas.PrintStats()
-			}
-		}
-
-		if rl.IsKeyPressed(rl.KeyF2) {
-			// F2: Salvar atlas atual em arquivo
-			if world.DynamicAtlas != nil {
-				err := world.DynamicAtlas.SaveAtlasDebug("debug_atlas.png")
-				if err != nil {
-					fmt.Printf("Erro ao salvar atlas: %v\n", err)
-				} else {
-					fmt.Println("Atlas salvo em debug_atlas.png")
-				}
-			}
-		}
-
-		if rl.IsKeyPressed(rl.KeyF3) {
-			// F3: Imprimir blocos visíveis
-			if world.VisibleBlocks != nil {
-				blocks := world.VisibleBlocks.GetRequiredBlocks()
-				fmt.Printf("Blocos visíveis: %d tipos\n", len(blocks))
-				for _, bt := range blocks {
-					fmt.Printf("  - BlockType %d (count: %d)\n",
-						bt, world.VisibleBlocks.BlockUsageCount[bt])
-				}
-			}
-		}
-
 		// Atualizar interface unificada
 		unifiedUI.Update(dt)
 
@@ -168,7 +136,7 @@ func main() {
 func renderUI(player *game.Player, world *game.World) {
 	rl.DrawText("WASD - Mover | Espaco - Pular | Mouse - Olhar | P - Fly Mode | K - Collision Body | O - NoClip", 10, 10, 20, rl.Black)
 	rl.DrawText("Click Esquerdo - Remover | Click Direito - Colocar | V - Alternar Camera", 10, 35, 20, rl.Black)
-	rl.DrawText("E - Inventario/Editor de Blocos | F1/F2/F3 - Debug", 10, 60, 20, rl.DarkGray)
+	rl.DrawText("E - Inventario/Editor de Blocos", 10, 60, 20, rl.DarkGray)
 
 	yOffset := int32(85)
 

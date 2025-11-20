@@ -1163,11 +1163,7 @@ func (ui *UnifiedInventoryUI) renderEditorBlockEdit() {
 		ui.saveCurrentBlock()
 	}
 
-	if ui.drawButton("Adicionar ao Hotbar", leftX+160, actionY, 170, 40) {
-		ui.showMessage("Bloco disponivel no hotbar!")
-	}
-
-	if ui.drawButtonColor("Deletar", leftX+340, actionY, 100, 40, rl.Red) {
+	if ui.drawButtonColor("Deletar", leftX+160, actionY, 100, 40, rl.Red) {
 		ui.deleteCurrentBlock()
 	}
 }
