@@ -85,14 +85,8 @@ func (c *Chunk) GenerateTerrain() {
 				for y := int32(0); y < ChunkHeight; y++ {
 					worldBlockY := worldY + y
 
-					if worldBlockY < terrainHeight-2 {
-						// Camadas inferiores: pedra
-						c.Blocks[x][y][z] = BlockStone
-					} else if worldBlockY < terrainHeight {
-						// Camadas intermediárias: terra
-						c.Blocks[x][y][z] = BlockDirt
-					} else if worldBlockY == terrainHeight {
-						// Superfície: grama
+					if worldBlockY <= terrainHeight {
+						// Usar apenas um tipo de bloco
 						c.Blocks[x][y][z] = BlockGrass
 					}
 				}

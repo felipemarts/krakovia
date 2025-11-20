@@ -30,11 +30,11 @@ type PlayerModel struct {
 	AnimationNames   map[string]int // Mapa de nome -> índice da animação
 
 	// Blending de animações
-	PrevAnimIndex   int     // Animação anterior (para blend)
-	PrevFrame       int     // Frame da animação anterior
-	BlendFactor     float32 // Fator de blend (0 = prev, 1 = current)
-	BlendSpeed      float32 // Velocidade de transição
-	IsBlending      bool    // Se está em transição
+	PrevAnimIndex int     // Animação anterior (para blend)
+	PrevFrame     int     // Frame da animação anterior
+	BlendFactor   float32 // Fator de blend (0 = prev, 1 = current)
+	BlendSpeed    float32 // Velocidade de transição
+	IsBlending    bool    // Se está em transição
 }
 
 // LoadPlayerModel carrega um modelo GLB com animações
@@ -472,7 +472,7 @@ func (p *Player) Update(dt float32, world *World, input Input) {
 	)
 
 	// Movimento WASD
-	speed := float32(15.0)
+	speed := float32(4.0)
 	moveInput := rl.NewVector3(0, 0, 0)
 
 	if input.IsForwardPressed() {
@@ -500,14 +500,13 @@ func (p *Player) Update(dt float32, world *World, input Input) {
 	// Lógica de física diferente baseado no modo fly
 	if p.FlyMode {
 		// No modo fly: sem gravidade, controle vertical com Shift/Ctrl
-		flySpeed := float32(15.0)
 		p.Velocity.Y = 0
 
 		if input.IsFlyUpPressed() {
-			p.Velocity.Y = flySpeed
+			p.Velocity.Y = speed
 		}
 		if input.IsFlyDownPressed() {
-			p.Velocity.Y = -flySpeed
+			p.Velocity.Y = -speed
 		}
 
 		// No modo fly, aplicar movimento COM colisões
@@ -705,8 +704,8 @@ func (p *Player) updateModelTilt(dt float32) {
 		sinRot := float32(math.Sin(float64(p.ModelRotation)))
 
 		// Velocidade local (frente/trás e esquerda/direita)
-		localForward := velX*sinRot + velZ*cosRot  // Velocidade na direção frontal
-		localRight := velX*cosRot - velZ*sinRot    // Velocidade lateral
+		localForward := velX*sinRot + velZ*cosRot // Velocidade na direção frontal
+		localRight := velX*cosRot - velZ*sinRot   // Velocidade lateral
 
 		// Normalizar para o range de inclinação
 		speed := float32(10.0) // Velocidade de referência para inclinação máxima
