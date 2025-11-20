@@ -31,13 +31,12 @@ type TextureManager struct {
 func NewTextureManager() *TextureManager {
 	tm := &TextureManager{
 		Textures:    make(map[string]*TextureDefinition),
-		TexturesDir: "assets/custom_textures",
-		DataFile:    "data/textures.json",
+		TexturesDir: "data/textures",
+		DataFile:    "data/textures/index.json",
 	}
 
 	// Criar diretórios
 	os.MkdirAll(tm.TexturesDir, 0755)
-	os.MkdirAll("data", 0755)
 
 	// Carregar texturas existentes
 	tm.LoadTextures()
@@ -57,6 +56,15 @@ func (tm *TextureManager) SaveTexture(name string, img image.Image) error {
 	filename := fmt.Sprintf("%s.png", safeName)
 	filepath := filepath.Join(tm.TexturesDir, filename)
 
+	// Converter para RGBA para garantir compatibilidade
+	bounds := img.Bounds()
+	rgbaImg := image.NewRGBA(bounds)
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			rgbaImg.Set(x, y, img.At(x, y))
+		}
+	}
+
 	// Salvar imagem
 	file, err := os.Create(filepath)
 	if err != nil {
@@ -64,7 +72,7 @@ func (tm *TextureManager) SaveTexture(name string, img image.Image) error {
 	}
 	defer file.Close()
 
-	err = png.Encode(file, img)
+	err = png.Encode(file, rgbaImg)
 	if err != nil {
 		return fmt.Errorf("erro ao salvar PNG: %w", err)
 	}

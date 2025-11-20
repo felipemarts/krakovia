@@ -32,6 +32,9 @@ type InventoryUI struct {
 
 	// Slot de hotbar selecionado para drop
 	HoverHotbarSlot int
+
+	// Cache de texturas carregadas
+	TextureCache map[uint16]rl.Texture2D
 }
 
 // NewInventoryUI cria uma nova interface de inventário
@@ -42,6 +45,7 @@ func NewInventoryUI(cbm *CustomBlockManager, hotbar *BlockHotbar) *InventoryUI {
 		Hotbar:          hotbar,
 		FilteredBlocks:  make([]BlockType, 0),
 		HoverHotbarSlot: -1,
+		TextureCache:    make(map[uint16]rl.Texture2D),
 	}
 
 	inv.refreshBlockList()
@@ -53,11 +57,34 @@ func (inv *InventoryUI) Toggle() {
 	inv.IsOpen = !inv.IsOpen
 	if inv.IsOpen {
 		rl.EnableCursor()
+		inv.loadTextures()
 		inv.refreshBlockList()
 	} else {
 		rl.DisableCursor()
 		inv.IsDragging = false
 		inv.IsSearching = false
+	}
+}
+
+// loadTextures carrega as texturas dos blocos customizados para o cache
+func (inv *InventoryUI) loadTextures() {
+	// Limpar cache anterior
+	for _, tex := range inv.TextureCache {
+		if tex.ID != 0 {
+			rl.UnloadTexture(tex)
+		}
+	}
+	inv.TextureCache = make(map[uint16]rl.Texture2D)
+
+	// Carregar texturas dos blocos customizados
+	customBlocks := inv.CustomBlockMgr.ListBlocks()
+	for _, block := range customBlocks {
+		if block.FaceTextures[FaceFront] != "" {
+			tex := rl.LoadTexture(block.FaceTextures[FaceFront])
+			if tex.ID != 0 {
+				inv.TextureCache[block.ID] = tex
+			}
+		}
 	}
 }
 
@@ -69,7 +96,8 @@ func (inv *InventoryUI) refreshBlockList() {
 	inv.FilteredBlocks = append(inv.FilteredBlocks, BlockGrass)
 
 	// Adicionar blocos customizados
-	for _, block := range inv.CustomBlockMgr.ListBlocks() {
+	customBlocks := inv.CustomBlockMgr.ListBlocks()
+	for _, block := range customBlocks {
 		inv.FilteredBlocks = append(inv.FilteredBlocks, BlockType(block.ID))
 	}
 
@@ -351,20 +379,14 @@ func (inv *InventoryUI) drawBlockIcon(blockType BlockType, x, y, size int32) {
 
 	if IsCustomBlock(blockType) {
 		blockID := GetCustomBlockID(blockType)
-		block := inv.CustomBlockMgr.GetBlock(blockID)
-		if block != nil {
-			// Tentar carregar textura da face frontal
-			if block.FaceTextures[FaceFront] != "" {
-				tex := rl.LoadTexture(block.FaceTextures[FaceFront])
-				if tex.ID != 0 {
-					rl.DrawTexturePro(tex,
-						rl.NewRectangle(0, 0, 32, 32),
-						rl.NewRectangle(float32(x), float32(y), float32(size), float32(size)),
-						rl.NewVector2(0, 0), 0, rl.White)
-					rl.UnloadTexture(tex)
-					return
-				}
-			}
+
+		// Usar textura do cache
+		if tex, exists := inv.TextureCache[blockID]; exists && tex.ID != 0 {
+			rl.DrawTexturePro(tex,
+				rl.NewRectangle(0, 0, float32(tex.Width), float32(tex.Height)),
+				rl.NewRectangle(float32(x), float32(y), float32(size), float32(size)),
+				rl.NewVector2(0, 0), 0, rl.White)
+			return
 		}
 		// Fallback: cor azul para customizado (diferente do Grass)
 		blockColor = rl.NewColor(100, 150, 200, 255)
@@ -439,5 +461,12 @@ func (inv *InventoryUI) Close() {
 		rl.DisableCursor()
 		inv.IsDragging = false
 		inv.IsSearching = false
+		// Limpar cache de texturas
+		for _, tex := range inv.TextureCache {
+			if tex.ID != 0 {
+				rl.UnloadTexture(tex)
+			}
+		}
+		inv.TextureCache = make(map[uint16]rl.Texture2D)
 	}
 }

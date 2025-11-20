@@ -68,6 +68,9 @@ type BlockEditorUI struct {
 
 	// Callback para notificar quando um bloco é salvo
 	OnBlockSaved func(block *CustomBlockDefinition)
+
+	// Cache de texturas carregadas
+	TextureCache map[string]rl.Texture2D
 }
 
 // NewBlockEditorUI cria uma nova interface do editor de blocos
@@ -79,9 +82,40 @@ func NewBlockEditorUI(cbm *CustomBlockManager) *BlockEditorUI {
 		Painter:        NewTexturePainter(),
 		SelectedFace:   FaceFront,
 		CurrentDir:     ".",
+		TextureCache:   make(map[string]rl.Texture2D),
 	}
 
 	return editor
+}
+
+// loadTextureCache carrega todas as texturas para o cache
+func (e *BlockEditorUI) loadTextureCache() {
+	// Limpar cache anterior
+	for _, tex := range e.TextureCache {
+		if tex.ID != 0 {
+			rl.UnloadTexture(tex)
+		}
+	}
+	e.TextureCache = make(map[string]rl.Texture2D)
+
+	// Carregar texturas do TextureManager
+	for _, name := range e.TextureMgr.ListTextures() {
+		texPath := e.TextureMgr.GetTexturePath(name)
+		if texPath != "" {
+			tex := rl.LoadTexture(texPath)
+			if tex.ID != 0 {
+				e.TextureCache[name] = tex
+			}
+		}
+	}
+}
+
+// getTexture retorna uma textura do cache pelo nome
+func (e *BlockEditorUI) getTexture(name string) rl.Texture2D {
+	if tex, exists := e.TextureCache[name]; exists {
+		return tex
+	}
+	return rl.Texture2D{}
 }
 
 // Toggle abre o editor (apenas abre, não fecha - use ESC para fechar)
@@ -89,6 +123,7 @@ func (e *BlockEditorUI) Toggle() {
 	if e.State == EditorStateClosed {
 		e.State = EditorStateMain
 		rl.EnableCursor()
+		e.loadTextureCache()
 	}
 	// Não fecha com B - use ESC para fechar/voltar
 }
@@ -106,6 +141,14 @@ func (e *BlockEditorUI) Close() {
 			e.FaceTexturesLoaded[i] = false
 		}
 	}
+
+	// Limpar cache de texturas
+	for _, tex := range e.TextureCache {
+		if tex.ID != 0 {
+			rl.UnloadTexture(tex)
+		}
+	}
+	e.TextureCache = make(map[string]rl.Texture2D)
 
 	rl.DisableCursor()
 }
@@ -194,6 +237,7 @@ func (e *BlockEditorUI) confirmInput() {
 				e.showMessage(fmt.Sprintf("Erro: %s", err))
 			} else {
 				e.showMessage(fmt.Sprintf("Textura '%s' salva!", e.InputBuffer))
+				e.loadTextureCache() // Recarregar cache após salvar
 				e.State = EditorStateTextureManager
 			}
 		}
@@ -317,16 +361,12 @@ func (e *BlockEditorUI) renderTextureManager() {
 
 			y := startY + int32(i-e.TextureListScroll)*(buttonHeight+5)
 
-			// Mostrar preview da textura
-			texPath := e.TextureMgr.GetTexturePath(name)
-			if texPath != "" {
-				tex := rl.LoadTexture(texPath)
-				if tex.ID != 0 {
-					rl.DrawTexturePro(tex, rl.NewRectangle(0, 0, 32, 32),
-						rl.NewRectangle(float32(leftX), float32(y), 32, 32),
-						rl.NewVector2(0, 0), 0, rl.White)
-					rl.UnloadTexture(tex)
-				}
+			// Mostrar preview da textura usando cache
+			tex := e.getTexture(name)
+			if tex.ID != 0 {
+				rl.DrawTexturePro(tex, rl.NewRectangle(0, 0, float32(tex.Width), float32(tex.Height)),
+					rl.NewRectangle(float32(leftX), float32(y), 32, 32),
+					rl.NewVector2(0, 0), 0, rl.White)
 			}
 
 			// Nome da textura
@@ -335,6 +375,7 @@ func (e *BlockEditorUI) renderTextureManager() {
 			// Botão deletar
 			if e.drawButtonColor("X", leftX+300, y, 30, buttonHeight, rl.Red) {
 				e.TextureMgr.DeleteTexture(name)
+				e.loadTextureCache() // Recarregar cache após deletar
 				e.showMessage(fmt.Sprintf("Textura '%s' deletada", name))
 			}
 		}
@@ -375,6 +416,7 @@ func (e *BlockEditorUI) renderTexturePaint() {
 			e.showMessage(fmt.Sprintf("Erro: %s", err))
 		} else {
 			e.showMessage(fmt.Sprintf("Textura '%s' salva!", e.InputBuffer))
+			e.loadTextureCache() // Recarregar cache após salvar
 			e.State = EditorStateTextureManager
 		}
 	}
@@ -511,6 +553,7 @@ func (e *BlockEditorUI) uploadTextureFromFile(path string) {
 	}
 
 	e.showMessage(fmt.Sprintf("Textura '%s' salva!", e.InputBuffer))
+	e.loadTextureCache() // Recarregar cache após salvar
 	e.State = EditorStateTextureManager
 }
 
@@ -664,30 +707,26 @@ func (e *BlockEditorUI) renderSelectTexture() {
 			x := leftX + int32(col)*(texSize+texSpacing)
 			y := startY + int32(row)*(texSize+texSpacing+20)
 
-			// Preview da textura
-			texPath := e.TextureMgr.GetTexturePath(name)
-			if texPath != "" {
-				tex := rl.LoadTexture(texPath)
-				if tex.ID != 0 {
-					rect := rl.NewRectangle(float32(x), float32(y), float32(texSize), float32(texSize))
-					rl.DrawTexturePro(tex, rl.NewRectangle(0, 0, 32, 32), rect, rl.NewVector2(0, 0), 0, rl.White)
-					rl.UnloadTexture(tex)
+			// Preview da textura usando cache
+			tex := e.getTexture(name)
+			if tex.ID != 0 {
+				rect := rl.NewRectangle(float32(x), float32(y), float32(texSize), float32(texSize))
+				rl.DrawTexturePro(tex, rl.NewRectangle(0, 0, float32(tex.Width), float32(tex.Height)), rect, rl.NewVector2(0, 0), 0, rl.White)
 
-					// Borda
-					isSelected := e.FaceTextureNames[e.SelectedFace] == name
-					borderColor := rl.White
-					if isSelected {
-						borderColor = rl.Yellow
-					}
-					rl.DrawRectangleLinesEx(rect, 2, borderColor)
+				// Borda
+				isSelected := e.FaceTextureNames[e.SelectedFace] == name
+				borderColor := rl.White
+				if isSelected {
+					borderColor = rl.Yellow
+				}
+				rl.DrawRectangleLinesEx(rect, 2, borderColor)
 
-					// Nome
-					rl.DrawText(name, x, y+texSize+2, 10, rl.White)
+				// Nome
+				rl.DrawText(name, x, y+texSize+2, 10, rl.White)
 
-					// Detectar clique
-					if rl.CheckCollisionPointRec(rl.GetMousePosition(), rect) && rl.IsMouseButtonPressed(rl.MouseLeftButton) {
-						e.setFaceTexture(name)
-					}
+				// Detectar clique
+				if rl.CheckCollisionPointRec(rl.GetMousePosition(), rect) && rl.IsMouseButtonPressed(rl.MouseLeftButton) {
+					e.setFaceTexture(name)
 				}
 			}
 		}

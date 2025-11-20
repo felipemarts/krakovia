@@ -86,8 +86,8 @@ func NewCustomBlockManager() *CustomBlockManager {
 	cbm := &CustomBlockManager{
 		Blocks:      make(map[uint16]*CustomBlockDefinition),
 		NextID:      CustomBlockIDStart,
-		TexturesDir: "assets/custom_blocks",
-		DataDir:     "data/custom_blocks",
+		TexturesDir: "data/blocks/textures",
+		DataDir:     "data/blocks",
 		FaceToSlot:  make(map[string]int32),
 	}
 
@@ -135,8 +135,16 @@ func (cbm *CustomBlockManager) SetFaceTexture(blockID uint16, face BlockFace, im
 		return fmt.Errorf("imagem deve ser 32x32 pixels, recebida: %dx%d", bounds.Dx(), bounds.Dy())
 	}
 
-	// Salvar imagem
-	block.FaceImages[face] = img
+	// Converter para RGBA para garantir compatibilidade
+	rgbaImg := image.NewRGBA(bounds)
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			rgbaImg.Set(x, y, img.At(x, y))
+		}
+	}
+
+	// Salvar imagem RGBA
+	block.FaceImages[face] = rgbaImg
 
 	// Salvar arquivo de textura
 	filename := fmt.Sprintf("block_%d_face_%d.png", blockID, face)
@@ -150,7 +158,7 @@ func (cbm *CustomBlockManager) SetFaceTexture(blockID uint16, face BlockFace, im
 	}
 	defer file.Close()
 
-	err = png.Encode(file, img)
+	err = png.Encode(file, rgbaImg)
 	if err != nil {
 		return fmt.Errorf("erro ao salvar PNG: %w", err)
 	}
@@ -367,7 +375,16 @@ func (cbm *CustomBlockManager) LoadAllBlocks() error {
 				continue
 			}
 
-			block.FaceImages[faceIdx] = img
+			// Converter para RGBA para garantir compatibilidade
+			bounds := img.Bounds()
+			rgbaImg := image.NewRGBA(bounds)
+			for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+				for x := bounds.Min.X; x < bounds.Max.X; x++ {
+					rgbaImg.Set(x, y, img.At(x, y))
+				}
+			}
+
+			block.FaceImages[faceIdx] = rgbaImg
 		}
 
 		// Adicionar ao mapa
