@@ -26,11 +26,14 @@ func main() {
 	// Inicializar gráficos do mundo (depois de InitWindow)
 	world.InitWorldGraphics()
 
-	// Inicializar editor de blocos
-	blockEditor := game.NewBlockEditorUI(world.CustomBlocks)
+	// Inicializar hotbar
+	hotbar := game.NewBlockHotbar(world.CustomBlocks)
+
+	// Inicializar interface unificada (inventário + editor de blocos)
+	unifiedUI := game.NewUnifiedInventoryUI(world.CustomBlocks, hotbar)
 
 	// Configurar callback para atualizar atlas quando um bloco for salvo
-	blockEditor.OnBlockSaved = func(block *game.CustomBlockDefinition) {
+	unifiedUI.OnBlockSaved = func(block *game.CustomBlockDefinition) {
 		// Registrar cada face separadamente no atlas
 		for faceIdx := 0; faceIdx < 6; faceIdx++ {
 			if block.FaceImages[faceIdx] != nil {
@@ -51,12 +54,6 @@ func main() {
 		world.ChunkManager.MarkAllChunksDirty()
 	}
 
-	// Inicializar hotbar
-	hotbar := game.NewBlockHotbar(world.CustomBlocks)
-
-	// Inicializar inventário
-	inventory := game.NewInventoryUI(world.CustomBlocks, hotbar)
-
 	// Input real do Raylib
 	input := &game.RaylibInput{}
 
@@ -67,18 +64,19 @@ func main() {
 	for !rl.WindowShouldClose() {
 		dt := rl.GetFrameTime()
 
-		// ESC fecha o jogo apenas se o editor e inventário não estiverem abertos
+		// ESC fecha o jogo apenas se a interface unificada não estiver aberta
 		if rl.IsKeyPressed(rl.KeyEscape) {
-			if inventory.IsOpen {
-				inventory.Close()
-			} else if !blockEditor.IsOpen() {
+			if unifiedUI.IsOpen {
+				// A interface unificada trata ESC internamente
+			} else {
 				break
 			}
 		}
 
-		// E: Abrir/fechar inventário
-		if rl.IsKeyPressed(rl.KeyE) && !blockEditor.IsOpen() {
-			inventory.Toggle()
+		// E: Abrir interface unificada (inventário + editor de blocos)
+		// Só abre se não estiver aberta (fecha apenas com ESC)
+		if rl.IsKeyPressed(rl.KeyE) && !unifiedUI.IsOpen {
+			unifiedUI.Toggle()
 		}
 
 		// Comandos de debug para atlas dinâmico
@@ -113,22 +111,14 @@ func main() {
 			}
 		}
 
-		// B: Abrir/fechar editor de blocos
-		if rl.IsKeyPressed(rl.KeyB) {
-			blockEditor.Toggle()
-		}
-
-		// Atualizar editor de blocos
-		blockEditor.Update(dt)
-
-		// Atualizar inventário
-		inventory.Update()
+		// Atualizar interface unificada
+		unifiedUI.Update(dt)
 
 		// Atualizar mundo (carrega/descarrega chunks baseado na posição do jogador)
 		world.Update(player.Position, dt)
 
-		// Atualizar jogador e hotbar (apenas se o editor e inventário não estiverem abertos)
-		if !blockEditor.IsOpen() && !inventory.IsOpen {
+		// Atualizar jogador e hotbar (apenas se a interface unificada não estiver aberta)
+		if !unifiedUI.IsOpen {
 			hotbar.Update()
 			player.SelectedBlock = hotbar.GetSelectedBlock()
 			player.Update(dt, world, input)
@@ -162,16 +152,13 @@ func main() {
 		// UI
 		renderUI(player, world)
 
-		// Renderizar hotbar (se o editor e inventário não estiverem abertos)
-		if !blockEditor.IsOpen() && !inventory.IsOpen {
+		// Renderizar hotbar (se a interface unificada não estiver aberta)
+		if !unifiedUI.IsOpen {
 			hotbar.Render()
 		}
 
-		// Renderizar inventário
-		inventory.Render()
-
-		// Renderizar editor de blocos (por cima de tudo)
-		blockEditor.Render()
+		// Renderizar interface unificada (inventário + editor de blocos)
+		unifiedUI.Render()
 
 		rl.EndDrawing()
 	}
@@ -179,9 +166,9 @@ func main() {
 
 // renderUI desenha a interface do usuário
 func renderUI(player *game.Player, world *game.World) {
-	rl.DrawText("WASD - Mover | Espaço - Pular | Mouse - Olhar | P - Fly Mode | K - Collision Body | O - NoClip", 10, 10, 20, rl.Black)
-	rl.DrawText("Click Esquerdo - Remover | Click Direito - Colocar | V - Alternar Câmera", 10, 35, 20, rl.Black)
-	rl.DrawText("B - Editor de Blocos | E - Inventário | F1/F2/F3 - Debug", 10, 60, 20, rl.DarkGray)
+	rl.DrawText("WASD - Mover | Espaco - Pular | Mouse - Olhar | P - Fly Mode | K - Collision Body | O - NoClip", 10, 10, 20, rl.Black)
+	rl.DrawText("Click Esquerdo - Remover | Click Direito - Colocar | V - Alternar Camera", 10, 35, 20, rl.Black)
+	rl.DrawText("E - Inventario/Editor de Blocos | F1/F2/F3 - Debug", 10, 60, 20, rl.DarkGray)
 
 	yOffset := int32(85)
 
