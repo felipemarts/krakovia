@@ -376,8 +376,9 @@ type Player struct {
 	ModelRotation       float32 // Rotação do modelo em radianos (direção que está olhando)
 	ModelTiltX          float32 // Inclinação do modelo no eixo X (frente/trás) em radianos
 	ModelTiltZ          float32 // Inclinação do modelo no eixo Z (esquerda/direita) em radianos
-	IsInteracting       bool    // Se está executando animação de interação
-	InteractFrames      int     // Frames restantes da animação de interação
+	IsInteracting       bool      // Se está executando animação de interação
+	InteractFrames      int       // Frames restantes da animação de interação
+	SelectedBlock       BlockType // Bloco selecionado para colocação
 }
 
 func NewPlayer(position rl.Vector3) *Player {
@@ -391,7 +392,8 @@ func NewPlayer(position rl.Vector3) *Player {
 		CameraDistance:      5.0,
 		ThirdPersonDistance: 5.0,
 		FirstPersonDistance: 0.35,
-		ModelOpacity:        1.0, // Começa opaco
+		ModelOpacity:        1.0,       // Começa opaco
+		SelectedBlock:       BlockGrass, // Bloco padrão
 	}
 
 	// Carregar modelo 3D do player
@@ -549,8 +551,8 @@ func (p *Player) Update(dt float32, world *World, input Input) {
 		)
 
 		// Verificar se o bloco que vai ser colocado não colide com o jogador
-		if !p.wouldBlockCollideWithPlayer(placePos) {
-			world.SetBlock(int32(p.PlaceBlock.X), int32(p.PlaceBlock.Y), int32(p.PlaceBlock.Z), BlockGrass)
+		if !p.wouldBlockCollideWithPlayer(placePos) && p.SelectedBlock != BlockAir {
+			world.SetBlock(int32(p.PlaceBlock.X), int32(p.PlaceBlock.Y), int32(p.PlaceBlock.Z), p.SelectedBlock)
 			// Iniciar animação de interação
 			p.startInteractAnimation()
 		}

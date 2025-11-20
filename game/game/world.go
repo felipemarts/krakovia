@@ -16,6 +16,9 @@ type World struct {
 	// Sistema de atlas dinâmico
 	DynamicAtlas  *DynamicAtlasManager
 	VisibleBlocks *VisibleBlocksTracker
+
+	// Sistema de blocos customizados
+	CustomBlocks *CustomBlockManager
 }
 
 func NewWorld() *World {
@@ -34,12 +37,39 @@ func (w *World) InitWorldGraphics() {
 	w.DynamicAtlas = NewDynamicAtlasManager(4, 32)
 	w.VisibleBlocks = NewVisibleBlocksTracker()
 
+	// Inicializar sistema de blocos customizados
+	w.CustomBlocks = NewCustomBlockManager()
+
+	// Carregar blocos customizados salvos
+	err := w.CustomBlocks.LoadAllBlocks()
+	if err != nil {
+		// fmt.Printf("AVISO: Erro ao carregar blocos customizados: %v\n", err)
+	}
+
+	// Reconstruir atlas de blocos customizados
+	w.CustomBlocks.BuildAtlas()
+
 	// Carregar texturas de todos os tipos conhecidos
 	for blockType, texFile := range BlockTextureFiles {
 		err := w.DynamicAtlas.LoadTexture(blockType, texFile)
 		if err != nil {
 			// Apenas aviso, não falha
 			// fmt.Printf("AVISO: Erro ao carregar textura %s: %v\n", texFile, err)
+		}
+	}
+
+	// Registrar texturas dos blocos customizados no atlas dinâmico
+	for _, block := range w.CustomBlocks.ListBlocks() {
+		// Registrar cada face separadamente no atlas
+		for faceIdx := 0; faceIdx < 6; faceIdx++ {
+			if block.FaceImages[faceIdx] != nil {
+				faceBlockType := EncodeCustomBlockFace(block.ID, BlockFace(faceIdx))
+				w.DynamicAtlas.AddTextureImage(faceBlockType, block.FaceImages[faceIdx])
+			}
+		}
+		// Também registrar a textura principal (para o inventário)
+		if block.FaceImages[FaceFront] != nil {
+			w.DynamicAtlas.AddTextureImage(BlockType(block.ID), block.FaceImages[FaceFront])
 		}
 	}
 

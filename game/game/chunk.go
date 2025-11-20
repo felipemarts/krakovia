@@ -178,6 +178,7 @@ func (c *Chunk) UpdateMeshesWithNeighbors(getBlockFunc func(x, y, z int32) Block
 
 	// Resetar atlas do chunk
 	c.ChunkAtlas.UsedBlocks = make(map[BlockType]int32)
+	c.ChunkAtlas.BlockOrder = make([]BlockType, 0)
 	c.ChunkAtlas.NeedsRebuild = true
 
 	// Posição mundial do chunk
@@ -195,7 +196,15 @@ func (c *Chunk) UpdateMeshesWithNeighbors(getBlockFunc func(x, y, z int32) Block
 		{0, 0, -1}, // 5: Face -Z (trás)
 	}
 
-	// Iterar por todos os blocos do chunk
+	// Estrutura para armazenar faces visíveis
+	type visibleFace struct {
+		wx, wy, wz int32
+		faceIndex  int
+		blockType  BlockType
+	}
+	var visibleFaces []visibleFace
+
+	// PASSAGEM 1: Coletar todos os BlockTypes e faces visíveis
 	for x := int32(0); x < ChunkSize; x++ {
 		for y := int32(0); y < ChunkHeight; y++ {
 			for z := int32(0); z < ChunkSize; z++ {
@@ -212,24 +221,36 @@ func (c *Chunk) UpdateMeshesWithNeighbors(getBlockFunc func(x, y, z int32) Block
 				wy := worldY + y
 				wz := worldZ + z
 
-				// Para cada face, verificar se está exposta e adicionar à mesh
+				// Para cada face, verificar se está exposta
 				for faceIndex, dir := range directions {
 					neighborBlock := getBlockFunc(wx+dir.dx, wy+dir.dy, wz+dir.dz)
 
 					// Se o vizinho é ar, a face está exposta
 					if neighborBlock == BlockAir {
-						// Adicionar quad para esta face usando o atlas do chunk
-						c.ChunkMesh.AddQuadWithChunkAtlas(float32(wx), float32(wy), float32(wz), faceIndex, blockType, c.ChunkAtlas)
+						// Para blocos customizados, usar textura específica da face
+						if IsCustomBlock(blockType) {
+							faceBlockType := EncodeCustomBlockFace(GetCustomBlockID(blockType), BlockFace(faceIndex))
+							c.ChunkAtlas.AddBlockType(faceBlockType)
+							visibleFaces = append(visibleFaces, visibleFace{wx, wy, wz, faceIndex, faceBlockType})
+						} else {
+							visibleFaces = append(visibleFaces, visibleFace{wx, wy, wz, faceIndex, blockType})
+						}
 					}
 				}
 			}
 		}
 	}
 
-	// Rebuildar atlas do chunk se necessário
-	if c.ChunkAtlas.NeedsRebuild && globalAtlas != nil {
+	// Rebuildar atlas do chunk ANTES de gerar a mesh
+	// Isso garante que o GridSize esteja correto para o cálculo dos UVs
+	if globalAtlas != nil {
 		c.ChunkAtlas.RebuildAtlas(globalAtlas.TextureCache)
 		c.ChunkAtlas.UploadToGPU()
+	}
+
+	// PASSAGEM 2: Gerar a mesh com os UVs corretos (agora que o GridSize foi atualizado)
+	for _, face := range visibleFaces {
+		c.ChunkMesh.AddQuadWithChunkAtlas(float32(face.wx), float32(face.wy), float32(face.wz), face.faceIndex, face.blockType, c.ChunkAtlas)
 	}
 
 	// Upload mesh para GPU

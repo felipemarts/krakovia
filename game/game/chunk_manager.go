@@ -299,6 +299,14 @@ func (cm *ChunkManager) GetLoadedChunksCount() int {
 	return len(cm.Chunks)
 }
 
+// MarkAllChunksDirty marca todos os chunks para reconstruir suas meshes
+// Útil quando o atlas de texturas é atualizado
+func (cm *ChunkManager) MarkAllChunksDirty() {
+	for _, chunk := range cm.Chunks {
+		chunk.NeedUpdateMeshes = true
+	}
+}
+
 // MarkNeighborsForUpdate marca os chunks vizinhos para atualização de meshes
 // Deve ser chamado quando um novo chunk é criado para que os vizinhos
 // recalculem suas faces considerando o novo chunk

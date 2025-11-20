@@ -40,7 +40,7 @@ func (cm *ChunkMesh) AddQuad(x, y, z float32, face int, blockType BlockType, atl
 
 	vertexOffset := uint16(len(cm.Vertices) / 3)
 
-	// Definir vértices e normais baseado na face
+	// Definir vértices, normais e UVs específicas por face
 	switch face {
 	case 0: // Face +X (direita)
 		cm.Vertices = append(cm.Vertices,
@@ -54,6 +54,13 @@ func (cm *ChunkMesh) AddQuad(x, y, z float32, face int, blockType BlockType, atl
 			1, 0, 0,
 			1, 0, 0,
 			1, 0, 0,
+		)
+		// UVs para face +X
+		cm.Texcoords = append(cm.Texcoords,
+			uMax, vMax,
+			uMax, vMin,
+			uMin, vMin,
+			uMin, vMax,
 		)
 
 	case 1: // Face -X (esquerda)
@@ -69,6 +76,13 @@ func (cm *ChunkMesh) AddQuad(x, y, z float32, face int, blockType BlockType, atl
 			-1, 0, 0,
 			-1, 0, 0,
 		)
+		// UVs para face -X
+		cm.Texcoords = append(cm.Texcoords,
+			uMax, vMax,
+			uMax, vMin,
+			uMin, vMin,
+			uMin, vMax,
+		)
 
 	case 2: // Face +Y (topo)
 		cm.Vertices = append(cm.Vertices,
@@ -82,6 +96,13 @@ func (cm *ChunkMesh) AddQuad(x, y, z float32, face int, blockType BlockType, atl
 			0, 1, 0,
 			0, 1, 0,
 			0, 1, 0,
+		)
+		// UVs para face +Y (topo)
+		cm.Texcoords = append(cm.Texcoords,
+			uMin, vMin,
+			uMin, vMax,
+			uMax, vMax,
+			uMax, vMin,
 		)
 
 	case 3: // Face -Y (fundo)
@@ -97,6 +118,13 @@ func (cm *ChunkMesh) AddQuad(x, y, z float32, face int, blockType BlockType, atl
 			0, -1, 0,
 			0, -1, 0,
 		)
+		// UVs para face -Y (fundo)
+		cm.Texcoords = append(cm.Texcoords,
+			uMin, vMax,
+			uMin, vMin,
+			uMax, vMin,
+			uMax, vMax,
+		)
 
 	case 4: // Face +Z (frente)
 		cm.Vertices = append(cm.Vertices,
@@ -110,6 +138,13 @@ func (cm *ChunkMesh) AddQuad(x, y, z float32, face int, blockType BlockType, atl
 			0, 0, 1,
 			0, 0, 1,
 			0, 0, 1,
+		)
+		// UVs para face +Z (frente)
+		cm.Texcoords = append(cm.Texcoords,
+			uMax, vMax,
+			uMax, vMin,
+			uMin, vMin,
+			uMin, vMax,
 		)
 
 	case 5: // Face -Z (trás)
@@ -125,15 +160,14 @@ func (cm *ChunkMesh) AddQuad(x, y, z float32, face int, blockType BlockType, atl
 			0, 0, -1,
 			0, 0, -1,
 		)
+		// UVs para face -Z (trás)
+		cm.Texcoords = append(cm.Texcoords,
+			uMin, vMax,
+			uMin, vMin,
+			uMax, vMin,
+			uMax, vMax,
+		)
 	}
-
-	// UVs (mesmos para todas as faces)
-	cm.Texcoords = append(cm.Texcoords,
-		uMin, vMax, // 0
-		uMin, vMin, // 1
-		uMax, vMin, // 2
-		uMax, vMax, // 3
-	)
 
 	// Índices (2 triângulos por quad)
 	cm.Indices = append(cm.Indices,
@@ -149,7 +183,8 @@ func (cm *ChunkMesh) AddQuadWithChunkAtlas(x, y, z float32, face int, blockType 
 
 	vertexOffset := uint16(len(cm.Vertices) / 3)
 
-	// Definir vértices e normais baseado na face
+	// Definir vértices, normais e UVs específicas por face
+	// UVs são ajustadas para cada face garantir orientação correta da textura
 	switch face {
 	case 0: // Face +X (direita)
 		cm.Vertices = append(cm.Vertices,
@@ -163,6 +198,13 @@ func (cm *ChunkMesh) AddQuadWithChunkAtlas(x, y, z float32, face int, blockType 
 			1, 0, 0,
 			1, 0, 0,
 			1, 0, 0,
+		)
+		// UVs para face +X: textura olhando para -X
+		cm.Texcoords = append(cm.Texcoords,
+			uMax, vMax, // bottom-left do quad -> top-right da textura
+			uMax, vMin, // top-left do quad -> bottom-right da textura
+			uMin, vMin, // top-right do quad -> bottom-left da textura
+			uMin, vMax, // bottom-right do quad -> top-left da textura
 		)
 
 	case 1: // Face -X (esquerda)
@@ -178,6 +220,13 @@ func (cm *ChunkMesh) AddQuadWithChunkAtlas(x, y, z float32, face int, blockType 
 			-1, 0, 0,
 			-1, 0, 0,
 		)
+		// UVs para face -X: textura olhando para +X
+		cm.Texcoords = append(cm.Texcoords,
+			uMax, vMax,
+			uMax, vMin,
+			uMin, vMin,
+			uMin, vMax,
+		)
 
 	case 2: // Face +Y (topo)
 		cm.Vertices = append(cm.Vertices,
@@ -191,6 +240,13 @@ func (cm *ChunkMesh) AddQuadWithChunkAtlas(x, y, z float32, face int, blockType 
 			0, 1, 0,
 			0, 1, 0,
 			0, 1, 0,
+		)
+		// UVs para face +Y (topo): textura vista de cima
+		cm.Texcoords = append(cm.Texcoords,
+			uMin, vMin,
+			uMin, vMax,
+			uMax, vMax,
+			uMax, vMin,
 		)
 
 	case 3: // Face -Y (fundo)
@@ -206,6 +262,13 @@ func (cm *ChunkMesh) AddQuadWithChunkAtlas(x, y, z float32, face int, blockType 
 			0, -1, 0,
 			0, -1, 0,
 		)
+		// UVs para face -Y (fundo): textura vista de baixo
+		cm.Texcoords = append(cm.Texcoords,
+			uMin, vMax,
+			uMin, vMin,
+			uMax, vMin,
+			uMax, vMax,
+		)
 
 	case 4: // Face +Z (frente)
 		cm.Vertices = append(cm.Vertices,
@@ -219,6 +282,13 @@ func (cm *ChunkMesh) AddQuadWithChunkAtlas(x, y, z float32, face int, blockType 
 			0, 0, 1,
 			0, 0, 1,
 			0, 0, 1,
+		)
+		// UVs para face +Z (frente): textura olhando para -Z
+		cm.Texcoords = append(cm.Texcoords,
+			uMax, vMax,
+			uMax, vMin,
+			uMin, vMin,
+			uMin, vMax,
 		)
 
 	case 5: // Face -Z (trás)
@@ -234,15 +304,14 @@ func (cm *ChunkMesh) AddQuadWithChunkAtlas(x, y, z float32, face int, blockType 
 			0, 0, -1,
 			0, 0, -1,
 		)
+		// UVs para face -Z (trás): textura olhando para +Z
+		cm.Texcoords = append(cm.Texcoords,
+			uMin, vMax,
+			uMin, vMin,
+			uMax, vMin,
+			uMax, vMax,
+		)
 	}
-
-	// UVs
-	cm.Texcoords = append(cm.Texcoords,
-		uMin, vMax,
-		uMin, vMin,
-		uMax, vMin,
-		uMax, vMax,
-	)
 
 	// Índices
 	cm.Indices = append(cm.Indices,
@@ -292,4 +361,138 @@ func (cm *ChunkMesh) Clear() {
 		rl.UnloadMesh(&cm.Mesh)
 		cm.Uploaded = false
 	}
+}
+
+// AddQuadWithCustomUVs adiciona um quad com UVs customizadas (para blocos customizados)
+func (cm *ChunkMesh) AddQuadWithCustomUVs(x, y, z float32, face int, uMin, vMin, uMax, vMax float32) {
+	vertexOffset := uint16(len(cm.Vertices) / 3)
+
+	// Definir vértices, normais e UVs específicas por face
+	switch face {
+	case 0: // Face +X (direita)
+		cm.Vertices = append(cm.Vertices,
+			x+1, y, z,
+			x+1, y+1, z,
+			x+1, y+1, z+1,
+			x+1, y, z+1,
+		)
+		cm.Normals = append(cm.Normals,
+			1, 0, 0,
+			1, 0, 0,
+			1, 0, 0,
+			1, 0, 0,
+		)
+		cm.Texcoords = append(cm.Texcoords,
+			uMax, vMax,
+			uMax, vMin,
+			uMin, vMin,
+			uMin, vMax,
+		)
+
+	case 1: // Face -X (esquerda)
+		cm.Vertices = append(cm.Vertices,
+			x, y, z+1,
+			x, y+1, z+1,
+			x, y+1, z,
+			x, y, z,
+		)
+		cm.Normals = append(cm.Normals,
+			-1, 0, 0,
+			-1, 0, 0,
+			-1, 0, 0,
+			-1, 0, 0,
+		)
+		cm.Texcoords = append(cm.Texcoords,
+			uMax, vMax,
+			uMax, vMin,
+			uMin, vMin,
+			uMin, vMax,
+		)
+
+	case 2: // Face +Y (topo)
+		cm.Vertices = append(cm.Vertices,
+			x, y+1, z,
+			x, y+1, z+1,
+			x+1, y+1, z+1,
+			x+1, y+1, z,
+		)
+		cm.Normals = append(cm.Normals,
+			0, 1, 0,
+			0, 1, 0,
+			0, 1, 0,
+			0, 1, 0,
+		)
+		cm.Texcoords = append(cm.Texcoords,
+			uMin, vMin,
+			uMin, vMax,
+			uMax, vMax,
+			uMax, vMin,
+		)
+
+	case 3: // Face -Y (fundo)
+		cm.Vertices = append(cm.Vertices,
+			x, y, z+1,
+			x, y, z,
+			x+1, y, z,
+			x+1, y, z+1,
+		)
+		cm.Normals = append(cm.Normals,
+			0, -1, 0,
+			0, -1, 0,
+			0, -1, 0,
+			0, -1, 0,
+		)
+		cm.Texcoords = append(cm.Texcoords,
+			uMin, vMax,
+			uMin, vMin,
+			uMax, vMin,
+			uMax, vMax,
+		)
+
+	case 4: // Face +Z (frente)
+		cm.Vertices = append(cm.Vertices,
+			x+1, y, z+1,
+			x+1, y+1, z+1,
+			x, y+1, z+1,
+			x, y, z+1,
+		)
+		cm.Normals = append(cm.Normals,
+			0, 0, 1,
+			0, 0, 1,
+			0, 0, 1,
+			0, 0, 1,
+		)
+		cm.Texcoords = append(cm.Texcoords,
+			uMax, vMax,
+			uMax, vMin,
+			uMin, vMin,
+			uMin, vMax,
+		)
+
+	case 5: // Face -Z (trás)
+		cm.Vertices = append(cm.Vertices,
+			x, y, z,
+			x, y+1, z,
+			x+1, y+1, z,
+			x+1, y, z,
+		)
+		cm.Normals = append(cm.Normals,
+			0, 0, -1,
+			0, 0, -1,
+			0, 0, -1,
+			0, 0, -1,
+		)
+		cm.Texcoords = append(cm.Texcoords,
+			uMin, vMax,
+			uMin, vMin,
+			uMax, vMin,
+			uMax, vMax,
+		)
+	}
+
+	// Índices
+	cm.Indices = append(cm.Indices,
+		vertexOffset+0, vertexOffset+1, vertexOffset+2,
+		vertexOffset+0, vertexOffset+2, vertexOffset+3,
+	)
 }

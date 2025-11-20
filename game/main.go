@@ -26,12 +26,60 @@ func main() {
 	// Inicializar gráficos do mundo (depois de InitWindow)
 	world.InitWorldGraphics()
 
+	// Inicializar editor de blocos
+	blockEditor := game.NewBlockEditorUI(world.CustomBlocks)
+
+	// Configurar callback para atualizar atlas quando um bloco for salvo
+	blockEditor.OnBlockSaved = func(block *game.CustomBlockDefinition) {
+		// Registrar cada face separadamente no atlas
+		for faceIdx := 0; faceIdx < 6; faceIdx++ {
+			if block.FaceImages[faceIdx] != nil {
+				faceBlockType := game.EncodeCustomBlockFace(block.ID, game.BlockFace(faceIdx))
+				world.DynamicAtlas.AddTextureImage(faceBlockType, block.FaceImages[faceIdx])
+			}
+		}
+		// Também registrar a textura principal (para o inventário)
+		if block.FaceImages[game.FaceFront] != nil {
+			world.DynamicAtlas.AddTextureImage(game.BlockType(block.ID), block.FaceImages[game.FaceFront])
+		}
+
+		// Rebuildar e fazer upload do atlas
+		world.DynamicAtlas.RebuildAtlas()
+		world.DynamicAtlas.UploadToGPU()
+
+		// Marcar todos os chunks para reconstruir meshes
+		world.ChunkManager.MarkAllChunksDirty()
+	}
+
+	// Inicializar hotbar
+	hotbar := game.NewBlockHotbar(world.CustomBlocks)
+
+	// Inicializar inventário
+	inventory := game.NewInventoryUI(world.CustomBlocks, hotbar)
+
 	// Input real do Raylib
 	input := &game.RaylibInput{}
+
+	// Desabilitar ESC para fechar janela (vamos controlar manualmente)
+	rl.SetExitKey(0)
 
 	// Loop principal do jogo
 	for !rl.WindowShouldClose() {
 		dt := rl.GetFrameTime()
+
+		// ESC fecha o jogo apenas se o editor e inventário não estiverem abertos
+		if rl.IsKeyPressed(rl.KeyEscape) {
+			if inventory.IsOpen {
+				inventory.Close()
+			} else if !blockEditor.IsOpen() {
+				break
+			}
+		}
+
+		// E: Abrir/fechar inventário
+		if rl.IsKeyPressed(rl.KeyE) && !blockEditor.IsOpen() {
+			inventory.Toggle()
+		}
 
 		// Comandos de debug para atlas dinâmico
 		if rl.IsKeyPressed(rl.KeyF1) {
@@ -65,11 +113,26 @@ func main() {
 			}
 		}
 
+		// B: Abrir/fechar editor de blocos
+		if rl.IsKeyPressed(rl.KeyB) {
+			blockEditor.Toggle()
+		}
+
+		// Atualizar editor de blocos
+		blockEditor.Update(dt)
+
+		// Atualizar inventário
+		inventory.Update()
+
 		// Atualizar mundo (carrega/descarrega chunks baseado na posição do jogador)
 		world.Update(player.Position, dt)
 
-		// Atualizar jogador
-		player.Update(dt, world, input)
+		// Atualizar jogador e hotbar (apenas se o editor e inventário não estiverem abertos)
+		if !blockEditor.IsOpen() && !inventory.IsOpen {
+			hotbar.Update()
+			player.SelectedBlock = hotbar.GetSelectedBlock()
+			player.Update(dt, world, input)
+		}
 
 		// Renderizar
 		rl.BeginDrawing()
@@ -99,6 +162,17 @@ func main() {
 		// UI
 		renderUI(player, world)
 
+		// Renderizar hotbar (se o editor e inventário não estiverem abertos)
+		if !blockEditor.IsOpen() && !inventory.IsOpen {
+			hotbar.Render()
+		}
+
+		// Renderizar inventário
+		inventory.Render()
+
+		// Renderizar editor de blocos (por cima de tudo)
+		blockEditor.Render()
+
 		rl.EndDrawing()
 	}
 }
@@ -107,7 +181,7 @@ func main() {
 func renderUI(player *game.Player, world *game.World) {
 	rl.DrawText("WASD - Mover | Espaço - Pular | Mouse - Olhar | P - Fly Mode | K - Collision Body", 10, 10, 20, rl.Black)
 	rl.DrawText("Click Esquerdo - Remover | Click Direito - Colocar | V - Alternar Câmera", 10, 35, 20, rl.Black)
-	rl.DrawText("F1 - Atlas Stats | F2 - Save Atlas | F3 - Visible Blocks | Setas - Animações", 10, 60, 20, rl.DarkGray)
+	rl.DrawText("B - Editor de Blocos | E - Inventário | F1/F2/F3 - Debug", 10, 60, 20, rl.DarkGray)
 
 	yOffset := int32(85)
 

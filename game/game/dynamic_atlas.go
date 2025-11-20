@@ -93,6 +93,36 @@ func (dam *DynamicAtlasManager) LoadTexture(blockType BlockType, filePath string
 	return nil
 }
 
+// AddTextureImage adiciona uma imagem diretamente ao cache (para blocos customizados)
+func (dam *DynamicAtlasManager) AddTextureImage(blockType BlockType, img image.Image) {
+	dam.mu.Lock()
+	defer dam.mu.Unlock()
+
+	// Adicionar ao cache
+	dam.TextureCache[blockType] = img
+	dam.LoadedTextures++
+
+	// Alocar slot se ainda não existir
+	if _, exists := dam.BlockToSlot[blockType]; !exists {
+		// Verificar se há slots disponíveis
+		maxSlots := dam.AtlasGridSize * dam.AtlasGridSize
+		if dam.NextSlot >= maxSlots {
+			fmt.Printf("AVISO: Atlas cheio! BlockType %d usando textura default\n", blockType)
+			return
+		}
+
+		// Alocar próximo slot
+		slot := dam.NextSlot
+		dam.NextSlot++
+
+		dam.BlockToSlot[blockType] = slot
+		dam.SlotToBlock[slot] = blockType
+		dam.UsedSlots[slot] = true
+	}
+
+	dam.AtlasDirty = true
+}
+
 // AllocateSlot aloca um slot no atlas para um BlockType
 func (dam *DynamicAtlasManager) AllocateSlot(blockType BlockType) int32 {
 	dam.mu.Lock()

@@ -1,7 +1,8 @@
 package game
 
 // BlockType representa o tipo de um bloco no mundo
-type BlockType uint8
+// Usando uint16 para suportar blocos customizados (IDs >= 256)
+type BlockType uint16
 
 const (
 	BlockAir BlockType = iota

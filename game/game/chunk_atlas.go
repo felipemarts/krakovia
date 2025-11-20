@@ -13,6 +13,7 @@ import (
 type ChunkAtlas struct {
 	// Mapeamento de blocos usados neste chunk
 	UsedBlocks map[BlockType]int32 // BlockType → índice no atlas local
+	BlockOrder []BlockType         // Ordem de inserção dos blocos (para iteração determinística)
 
 	// Atlas local
 	GridSize       int32        // Tamanho do grid (ex: 4 para 4x4)
@@ -28,12 +29,13 @@ type ChunkAtlas struct {
 func NewChunkAtlas(gridSize, tileSize int32) *ChunkAtlas {
 	atlasPixelSize := gridSize * tileSize
 	return &ChunkAtlas{
-		UsedBlocks: make(map[BlockType]int32),
-		GridSize:   gridSize,
-		TileSize:   tileSize,
-		AtlasImage: image.NewRGBA(image.Rect(0, 0, int(atlasPixelSize), int(atlasPixelSize))),
+		UsedBlocks:   make(map[BlockType]int32),
+		BlockOrder:   make([]BlockType, 0),
+		GridSize:     gridSize,
+		TileSize:     tileSize,
+		AtlasImage:   image.NewRGBA(image.Rect(0, 0, int(atlasPixelSize), int(atlasPixelSize))),
 		NeedsRebuild: true,
-		IsUploaded: false,
+		IsUploaded:   false,
 	}
 }
 
@@ -46,6 +48,7 @@ func (ca *ChunkAtlas) AddBlockType(blockType BlockType) {
 	// Adicionar no próximo slot disponível
 	index := int32(len(ca.UsedBlocks))
 	ca.UsedBlocks[blockType] = index
+	ca.BlockOrder = append(ca.BlockOrder, blockType)
 	ca.NeedsRebuild = true
 }
 
@@ -82,8 +85,9 @@ func (ca *ChunkAtlas) RebuildAtlas(textureCache map[BlockType]image.Image) {
 		}
 	}
 
-	// Copiar cada textura para seu slot
-	for blockType, index := range ca.UsedBlocks {
+	// Copiar cada textura para seu slot usando ordem determinística
+	for _, blockType := range ca.BlockOrder {
+		index := ca.UsedBlocks[blockType]
 		img, exists := textureCache[blockType]
 		if !exists {
 			continue
