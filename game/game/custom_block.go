@@ -7,6 +7,7 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 )
 
@@ -388,7 +389,7 @@ func (cbm *CustomBlockManager) GetBlock(blockID uint16) *CustomBlockDefinition {
 	return cbm.Blocks[blockID]
 }
 
-// ListBlocks retorna todos os blocos customizados
+// ListBlocks retorna todos os blocos customizados ordenados por ID
 func (cbm *CustomBlockManager) ListBlocks() []*CustomBlockDefinition {
 	cbm.mu.RLock()
 	defer cbm.mu.RUnlock()
@@ -397,6 +398,12 @@ func (cbm *CustomBlockManager) ListBlocks() []*CustomBlockDefinition {
 	for _, block := range cbm.Blocks {
 		blocks = append(blocks, block)
 	}
+
+	// Ordenar por ID para ordem consistente
+	sort.Slice(blocks, func(i, j int) bool {
+		return blocks[i].ID < blocks[j].ID
+	})
+
 	return blocks
 }
 

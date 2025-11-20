@@ -8,6 +8,7 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
@@ -109,12 +110,16 @@ func (tm *TextureManager) GetTexturePath(name string) string {
 	return filepath.Join(tm.TexturesDir, tex.Filename)
 }
 
-// ListTextures retorna lista de nomes de texturas
+// ListTextures retorna lista de nomes de texturas ordenada alfabeticamente
 func (tm *TextureManager) ListTextures() []string {
 	names := make([]string, 0, len(tm.Textures))
 	for name := range tm.Textures {
 		names = append(names, name)
 	}
+
+	// Ordenar alfabeticamente para ordem consistente
+	sort.Strings(names)
+
 	return names
 }
 
