@@ -8,8 +8,6 @@ import (
 type World struct {
 	ChunkManager     *ChunkManager
 	GrassMesh        rl.Mesh
-	DirtMesh         rl.Mesh
-	StoneMesh        rl.Mesh
 	Material         rl.Material
 	TextureAtlas     rl.Texture2D
 	RenderDistance   int32
@@ -62,8 +60,6 @@ func (w *World) InitWorldGraphics() {
 	// Criar meshes com UVs customizadas para cada tipo de bloco
 	// NOTA: Essas meshes não são mais usadas com o sistema de chunks
 	w.GrassMesh = CreateTexturedCubeMesh(BlockGrass)
-	w.DirtMesh = CreateTexturedCubeMesh(BlockDirt)
-	w.StoneMesh = CreateTexturedCubeMesh(BlockStone)
 }
 
 func (w *World) SetBlock(x, y, z int32, block BlockType) {
@@ -152,7 +148,7 @@ func (w *World) UpdateDynamicAtlas() {
 }
 
 func (w *World) Render(playerPos rl.Vector3) {
-	w.ChunkManager.Render(w.GrassMesh, w.DirtMesh, w.StoneMesh, w.Material, playerPos, w.VisibleBlocks, w.DynamicAtlas)
+	w.ChunkManager.Render(w.GrassMesh, w.Material, playerPos, w.VisibleBlocks, w.DynamicAtlas)
 }
 
 // GetTotalBlocks retorna o número total de blocos (para debug/UI)

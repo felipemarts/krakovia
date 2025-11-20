@@ -25,9 +25,9 @@ func createChunkedFlatWorld() *World {
 					// Preencher blocos até Y=10
 					for cy := int32(0); cy <= 10; cy++ {
 						if cy < 8 {
-							chunk.Blocks[cx][cy][cz] = BlockStone
+							chunk.Blocks[cx][cy][cz] = BlockGrass
 						} else if cy < 10 {
-							chunk.Blocks[cx][cy][cz] = BlockDirt
+							chunk.Blocks[cx][cy][cz] = BlockGrass
 						} else {
 							chunk.Blocks[cx][cy][cz] = BlockGrass
 						}
@@ -151,7 +151,7 @@ func TestCollision_PlayerCollidesWithWall(t *testing.T) {
 
 	// Colocar uma parede na frente do player
 	for y := int32(11); y <= 13; y++ {
-		world.SetBlock(16, y, 20, BlockStone)
+		world.SetBlock(16, y, 20, BlockGrass)
 	}
 
 	initialZ := player.Position.Z
@@ -168,7 +168,7 @@ func TestCollision_PlayerCollidesWithWall(t *testing.T) {
 	}
 
 	// Mas deveria ter se movido pelo menos um pouco
-	if player.Position.Z <= initialZ + 1.0 {
+	if player.Position.Z <= initialZ+1.0 {
 		t.Errorf("Player não se moveu. Z inicial: %.2f, Z final: %.2f", initialZ, player.Position.Z)
 	}
 }
@@ -183,7 +183,7 @@ func TestCollision_PlayerCollidesWithCeiling(t *testing.T) {
 	simulateCollisionFrames(player, world, input, 120)
 
 	// Colocar bloco acima (teto baixo)
-	world.SetBlock(16, 13, 16, BlockStone)
+	world.SetBlock(16, 13, 16, BlockGrass)
 
 	// Tentar pular
 	input.Jump = true
@@ -214,10 +214,10 @@ func TestCollision_PlayerCannotMoveIntoBlock(t *testing.T) {
 	simulateCollisionFrames(player, world, input, 120)
 
 	// Cercar player com blocos em todas as direções horizontais
-	world.SetBlock(16, 11, 17, BlockStone) // Frente
-	world.SetBlock(16, 11, 15, BlockStone) // Trás
-	world.SetBlock(17, 11, 16, BlockStone) // Direita
-	world.SetBlock(15, 11, 16, BlockStone) // Esquerda
+	world.SetBlock(16, 11, 17, BlockGrass) // Frente
+	world.SetBlock(16, 11, 15, BlockGrass) // Trás
+	world.SetBlock(17, 11, 16, BlockGrass) // Direita
+	world.SetBlock(15, 11, 16, BlockGrass) // Esquerda
 
 	initialPos := player.Position
 
@@ -297,7 +297,7 @@ func TestCollision_HighSpeedNoClipping(t *testing.T) {
 
 	// Colocar parede
 	for y := int32(11); y <= 13; y++ {
-		world.SetBlock(16, y, 19, BlockStone)
+		world.SetBlock(16, y, 19, BlockGrass)
 	}
 
 	// Tentar mover muito rápido em direção à parede

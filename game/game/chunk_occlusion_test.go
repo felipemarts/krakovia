@@ -8,22 +8,22 @@ import (
 func TestBlockOcclusion(t *testing.T) {
 	tests := []struct {
 		name           string
-		chunkCoords    []ChunkCoord // Coordenadas dos chunks a criar
+		chunkCoords    []ChunkCoord            // Coordenadas dos chunks a criar
 		blockPos       struct{ x, y, z int32 } // Posição mundial do bloco a testar
 		shouldBeHidden bool
 		description    string
 	}{
 		{
-			name:        "Bloco isolado no ar - deve ser visível",
-			chunkCoords: []ChunkCoord{{X: 0, Y: 0, Z: 0}},
-			blockPos:    struct{ x, y, z int32 }{x: 16, y: 16, z: 16}, // Centro do chunk
+			name:           "Bloco isolado no ar - deve ser visível",
+			chunkCoords:    []ChunkCoord{{X: 0, Y: 0, Z: 0}},
+			blockPos:       struct{ x, y, z int32 }{x: 16, y: 16, z: 16}, // Centro do chunk
 			shouldBeHidden: false,
 			description:    "Um único bloco sem vizinhos deve ser visível",
 		},
 		{
-			name:        "Bloco cercado dentro do mesmo chunk - deve ser oculto",
-			chunkCoords: []ChunkCoord{{X: 0, Y: 0, Z: 0}},
-			blockPos:    struct{ x, y, z int32 }{x: 16, y: 16, z: 16},
+			name:           "Bloco cercado dentro do mesmo chunk - deve ser oculto",
+			chunkCoords:    []ChunkCoord{{X: 0, Y: 0, Z: 0}},
+			blockPos:       struct{ x, y, z int32 }{x: 16, y: 16, z: 16},
 			shouldBeHidden: true,
 			description:    "Bloco completamente cercado deve ser oculto",
 		},
@@ -120,7 +120,7 @@ func TestBlockOcclusion(t *testing.T) {
 				for x := int32(0); x < ChunkSize; x++ {
 					for y := int32(0); y < ChunkHeight; y++ {
 						for z := int32(0); z < ChunkSize; z++ {
-							chunk.Blocks[x][y][z] = BlockStone
+							chunk.Blocks[x][y][z] = BlockGrass
 						}
 					}
 				}
@@ -140,20 +140,20 @@ func TestBlockOcclusion(t *testing.T) {
 					}
 				}
 				// Colocar apenas um bloco no centro
-				chunk.Blocks[16][16][16] = BlockStone
+				chunk.Blocks[16][16][16] = BlockGrass
 			}
 
 			// Para o teste "Bloco na borda sem vizinho", remover o bloco vizinho no ar
 			if tt.name == "Bloco na borda do chunk sem vizinho no próximo chunk (X+) - coordenadas positivas" {
 				chunk := cm.Chunks[ChunkCoord{X: 0, Y: 0, Z: 0}.Key()]
 				// Garantir que há um bloco na borda
-				chunk.Blocks[31][16][16] = BlockStone
+				chunk.Blocks[31][16][16] = BlockGrass
 				// Mas todos os vizinhos internos também são pedra
-				chunk.Blocks[30][16][16] = BlockStone // Vizinho X-
-				chunk.Blocks[31][17][16] = BlockStone // Vizinho Y+
-				chunk.Blocks[31][15][16] = BlockStone // Vizinho Y-
-				chunk.Blocks[31][16][17] = BlockStone // Vizinho Z+
-				chunk.Blocks[31][16][15] = BlockStone // Vizinho Z-
+				chunk.Blocks[30][16][16] = BlockGrass // Vizinho X-
+				chunk.Blocks[31][17][16] = BlockGrass // Vizinho Y+
+				chunk.Blocks[31][15][16] = BlockGrass // Vizinho Y-
+				chunk.Blocks[31][16][17] = BlockGrass // Vizinho Z+
+				chunk.Blocks[31][16][15] = BlockGrass // Vizinho Z-
 				// O vizinho X+ está no próximo chunk que não existe
 			}
 
@@ -165,7 +165,10 @@ func TestBlockOcclusion(t *testing.T) {
 			t.Logf("Chunk esperado: %v", GetChunkCoord(tt.blockPos.x, tt.blockPos.y, tt.blockPos.z))
 
 			// Verificar cada vizinho
-			directions := []struct{ name string; dx, dy, dz int32 }{
+			directions := []struct {
+				name       string
+				dx, dy, dz int32
+			}{
 				{"X+", 1, 0, 0},
 				{"X-", -1, 0, 0},
 				{"Y+", 0, 1, 0},
@@ -217,4 +220,3 @@ func TestChunkCoordCalculation(t *testing.T) {
 		})
 	}
 }
-

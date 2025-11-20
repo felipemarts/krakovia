@@ -550,7 +550,7 @@ func (p *Player) Update(dt float32, world *World, input Input) {
 
 		// Verificar se o bloco que vai ser colocado não colide com o jogador
 		if !p.wouldBlockCollideWithPlayer(placePos) {
-			world.SetBlock(int32(p.PlaceBlock.X), int32(p.PlaceBlock.Y), int32(p.PlaceBlock.Z), BlockStone)
+			world.SetBlock(int32(p.PlaceBlock.X), int32(p.PlaceBlock.Y), int32(p.PlaceBlock.Z), BlockGrass)
 			// Iniciar animação de interação
 			p.startInteractAnimation()
 		}

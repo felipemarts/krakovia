@@ -259,7 +259,7 @@ func (cm *ChunkManager) UpdatePendingMeshes(maxMeshUpdatesPerFrame int, atlas *D
 }
 
 // Render renderiza todos os chunks carregados usando atlas por chunk
-func (cm *ChunkManager) Render(grassMesh, dirtMesh, stoneMesh rl.Mesh, material rl.Material, playerPos rl.Vector3, visibleBlocks *VisibleBlocksTracker, atlas *DynamicAtlasManager) {
+func (cm *ChunkManager) Render(grassMesh rl.Mesh, material rl.Material, playerPos rl.Vector3, visibleBlocks *VisibleBlocksTracker, atlas *DynamicAtlasManager) {
 	// Atualizar meshes pendentes (máximo 3 por frame)
 	const maxMeshUpdatesPerFrame = 3
 	cm.UpdatePendingMeshes(maxMeshUpdatesPerFrame, atlas)
