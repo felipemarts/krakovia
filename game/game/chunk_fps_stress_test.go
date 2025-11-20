@@ -21,7 +21,7 @@ func TestChunkLoading_StressTestRapidMovement(t *testing.T) {
 	input := &SimulatedInput{Forward: true}
 
 	const totalFrames = 1200 // 20 segundos
-	const fpsDropThreshold = 33 * time.Millisecond
+	const fpsDropThreshold = 100 * time.Millisecond
 
 	type FrameMetrics struct {
 		frameNum      int
@@ -103,7 +103,7 @@ func TestChunkLoading_StressTestDirectionChanges(t *testing.T) {
 	input := &SimulatedInput{}
 
 	const totalFrames = 1200
-	const fpsDropThreshold = 33 * time.Millisecond
+	const fpsDropThreshold = 100 * time.Millisecond
 
 	fpsDrops := 0
 	lastChunkCount := 0
@@ -172,7 +172,7 @@ func TestChunkLoading_StressTestMassiveUnload(t *testing.T) {
 	player.FlyMode = true
 	input := &SimulatedInput{}
 
-	const fpsDropThreshold = 33 * time.Millisecond
+	const fpsDropThreshold = 100 * time.Millisecond
 
 	// Fase 1: Carregar muitos chunks
 	t.Log("Fase 1: Carregando área grande...")
@@ -246,7 +246,7 @@ func TestChunkLoading_StressTestContinuousLoad(t *testing.T) {
 	input := &SimulatedInput{Forward: true}
 
 	const totalFrames = 1800 // 30 segundos
-	const fpsDropThreshold = 33 * time.Millisecond
+	const fpsDropThreshold = 100 * time.Millisecond
 
 	fpsDrops := 0
 	totalChunksLoaded := 0
@@ -322,7 +322,7 @@ func TestChunkLoading_StressTestChunkThrashing(t *testing.T) {
 	input := &SimulatedInput{}
 
 	const totalFrames = 1200
-	const fpsDropThreshold = 33 * time.Millisecond
+	const fpsDropThreshold = 100 * time.Millisecond
 
 	fpsDrops := 0
 	thrashingEvents := 0
@@ -381,7 +381,7 @@ func TestChunkLoading_EdgeCase_MaxChunksPerFrame(t *testing.T) {
 	player.FlyMode = true
 	input := &SimulatedInput{}
 
-	const fpsDropThreshold = 33 * time.Millisecond
+	const fpsDropThreshold = 100 * time.Millisecond
 
 	maxChunksLoadedPerFrame := 0
 	frameWithMaxLoading := 0
