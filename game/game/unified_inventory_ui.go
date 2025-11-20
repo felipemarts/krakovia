@@ -402,7 +402,8 @@ func (ui *UnifiedInventoryUI) updateHotbarHover() {
 	slotSpacing := int32(5)
 	totalWidth := 9*slotSize + 8*slotSpacing
 	startX := (ScreenWidth - totalWidth) / 2
-	startY := ScreenHeight - slotSize - 20
+	// Deve corresponder à posição em renderHotbar()
+	startY := ScreenHeight - slotSize - 90
 
 	ui.HoverHotbarSlot = -1
 
