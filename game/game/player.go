@@ -370,6 +370,7 @@ type Player struct {
 	ThirdPersonDistance float32
 	FirstPersonDistance float32
 	FlyMode             bool
+	NoClip              bool
 	ShowCollisionBody   bool
 	Model               *PlayerModel
 	ModelOpacity        float32 // Opacidade do modelo (0.0 = transparente, 1.0 = opaco)
@@ -444,6 +445,11 @@ func (p *Player) Update(dt float32, world *World, input Input) {
 	// Toggle visualização do corpo de colisão com tecla K
 	if input.IsCollisionTogglePressed() {
 		p.ShowCollisionBody = !p.ShowCollisionBody
+	}
+
+	// Toggle NoClip (desabilita colisão) com tecla O
+	if input.IsNoClipTogglePressed() {
+		p.NoClip = !p.NoClip
 	}
 
 	// Controle do mouse
@@ -1046,6 +1052,11 @@ func (p *Player) wouldBlockCollideWithPlayer(blockPos rl.Vector3) bool {
 }
 
 func (p *Player) CheckCollision(newPos rl.Vector3, world *World) bool {
+	// Se NoClip está ativo, não há colisão
+	if p.NoClip {
+		return false
+	}
+
 	// Verificar colisÃ£o cilÃ­ndrica apropriada
 	minX := int32(math.Floor(float64(newPos.X - p.Radius)))
 	maxX := int32(math.Floor(float64(newPos.X + p.Radius)))

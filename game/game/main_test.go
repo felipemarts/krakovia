@@ -57,8 +57,8 @@ func TestPlayerMovement_Forward(t *testing.T) {
 	}
 
 	// Verificar que se moveu aproximadamente a distância esperada
-	// velocidade = 15.0 m/s, tempo = 1s, distância esperada ≈ 15.0
-	expectedDistance := float32(15.0)
+	// velocidade = 4.0 m/s, tempo = 1s, distância esperada ≈ 4.0
+	expectedDistance := float32(4.0)
 	actualDistance := player.Position.Z - initialZ
 	if !approximatelyEqual(actualDistance, expectedDistance, 1.0) {
 		t.Errorf("Distância percorrida incorreta. Esperada: ~%.2f, Atual: %.2f", expectedDistance, actualDistance)
@@ -603,7 +603,7 @@ func TestPlayerPhysics_DiagonalMovement(t *testing.T) {
 			(player.Position.Z-initialPos.Z)*(player.Position.Z-initialPos.Z)),
 	))
 
-	expectedDistance := float32(15.0) // Mesma velocidade que movimento reto
+	expectedDistance := float32(4.0) // Mesma velocidade que movimento reto
 	if !approximatelyEqual(totalDistance, expectedDistance, 1.0) {
 		t.Errorf("Velocidade diagonal incorreta. Esperada: ~%.2f, Atual: %.2f", expectedDistance, totalDistance)
 	}

@@ -179,7 +179,7 @@ func main() {
 
 // renderUI desenha a interface do usuário
 func renderUI(player *game.Player, world *game.World) {
-	rl.DrawText("WASD - Mover | Espaço - Pular | Mouse - Olhar | P - Fly Mode | K - Collision Body", 10, 10, 20, rl.Black)
+	rl.DrawText("WASD - Mover | Espaço - Pular | Mouse - Olhar | P - Fly Mode | K - Collision Body | O - NoClip", 10, 10, 20, rl.Black)
 	rl.DrawText("Click Esquerdo - Remover | Click Direito - Colocar | V - Alternar Câmera", 10, 35, 20, rl.Black)
 	rl.DrawText("B - Editor de Blocos | E - Inventário | F1/F2/F3 - Debug", 10, 60, 20, rl.DarkGray)
 
@@ -188,6 +188,12 @@ func renderUI(player *game.Player, world *game.World) {
 	// Mostrar status do modo fly
 	if player.FlyMode {
 		rl.DrawText("FLY MODE ATIVO | Shift - Subir | Ctrl - Descer", 10, yOffset, 20, rl.Red)
+		yOffset += 25
+	}
+
+	// Mostrar status do NoClip
+	if player.NoClip {
+		rl.DrawText("NOCLIP ATIVO - Colisão desabilitada", 10, yOffset, 20, rl.Orange)
 		yOffset += 25
 	}
 
